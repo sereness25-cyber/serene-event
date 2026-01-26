@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>顧客マスタ</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px; --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 40px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted)}
+
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 10px;border-radius:10px;cursor:pointer;
+  font-size:12px;
+  text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:6px;
+}
+.btn.primary{
+  background:linear-gradient(135deg,var(--pri),var(--pri2));
+  color:#fff;border:none;
+}
+.btn.danger{border-color:#fca5a5;color:#b91c1c}
+.input{
+  border:1px solid var(--line);
+  padding:8px 10px;
+  border-radius:10px;
+  width:100%;
+  background:#fff;
+}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:#b91c1c}
+.list{display:flex;flex-direction:column;gap:10px}
+
+.row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:800px){ .row{grid-template-columns:1fr 1fr} }
+@media(max-width:480px){ .row{grid-template-columns:1fr} }
+
+.item{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.item .title{font-weight:800}
+.item .subline{font-size:12px;color:var(--muted);margin-top:4px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ===== モーダル ===== */
+.modalBack{
+  position:fixed;inset:0;background:rgba(15,23,42,.35);
+  display:none;align-items:center;justify-content:center;
+  padding:18px; z-index:50;
+}
+.modal{
+  width:min(920px,100%);
+  background:#fff;border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);
+}
+.modalHd{
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.modalBd{padding:12px 14px}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <h1>顧客マスタ</h1>
+      <div class="sub">参加者の基本情報を管理します</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="btn" href="../admin.html">管理へ戻る</a>
+    <a class="btn" href="../participants/participants.html">参加者管理</a>
+    <button class="btn primary" id="btnNew" type="button">新規登録</button>
+  </div>
+</header>
+
+<section class="card">
+  <div class="hd">
+    <strong>顧客一覧</strong>
+    <input class="input" id="q" placeholder="検索（名前/連絡先）" style="max-width:240px">
+    <span class="meta" id="count">-</span>
+    <span class="meta" id="status">-</span>
+    <span class="err" id="err"></span>
+  </div>
+  <div class="bd">
+    <div class="list" id="list"></div>
+  </div>
+</section>
+
+</div>
+
+<!-- ===== 編集モーダル ===== -->
+<div class="modalBack" id="modalBack" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modalHd">
+      <strong id="modalTitle">新規登録</strong>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btnClose" type="button">閉じる</button>
+      </div>
+    </div>
+    <div class="modalBd">
+      <input type="hidden" id="cid">
+
+      <div class="row">
+        <input class="input" id="cName" placeholder="名前（必須）">
+
+        <input class="input" id="cAge" placeholder="年齢" inputmode="numeric" pattern="[0-9]*">
+
+        <!-- ✅ 先頭0保持：text + inputmode -->
+        <input class="input" id="cContact" placeholder="連絡先（例: 09012345678）"
+               type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="tel">
+
+        <select class="input" id="cContactMethod">
+          <option value="">連絡方法（未設定）</option>
+          <option value="電話">電話</option>
+          <option value="メール">メール</option>
+          <option value="LINE">LINE</option>
+          <option value="その他">その他</option>
+        </select>
+
+        <input class="input" id="cJoinCount" placeholder="イベント参加回数" inputmode="numeric" pattern="[0-9]*">
+        <input class="input" id="cMemo" placeholder="メモ">
+      </div>
+
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn primary" id="btnSave" type="button">保存</button>
+        <button class="btn danger" id="btnDelete" type="button" style="display:none">削除</button>
+        <button class="btn" id="btnClear" type="button">クリア</button>
+        <span class="meta" id="mStatus">-</span>
+        <span class="err" id="mErr"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+const ADMIN_KEY = "kei591117";
+
+const $ = id => document.getElementById(id);
+let customers = [];
+
+function setStatus(msg){ $("status").textContent = msg || "-"; }
+function setError(msg){ $("err").textContent = msg || ""; }
+function setMStatus(msg){ $("mStatus").textContent = msg || "-"; }
+function setMError(msg){ $("mErr").textContent = msg || ""; }
+
+function pickCustomers(j){
+  if(!j) return [];
+  return j.customers || j.data?.customers || j["顧客"] || j["customer"] || [];
+}
+
+async function fetchJson(url, opt){
+  const res = await fetch(url, Object.assign({cache:"no-store"}, opt||{}));
+  const j = await res.json().catch(()=> ({}));
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+
+/* ===== API ===== */
+async function apiList(){
+  const j = await fetchJson(API_URL + "?action=customers:list&nocache=1");
+  return pickCustomers(j);
+}
+async function apiUpsert(c){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ key: ADMIN_KEY, action:"customers:upsert", customer:c })
+  });
+}
+async function apiDelete(cid){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ key: ADMIN_KEY, action:"customers:delete", cid })
+  });
+}
+
+/* ===== モーダル操作 ===== */
+function openModal(mode, c){
+  $("modalBack").style.display="flex";
+  $("modalBack").setAttribute("aria-hidden","false");
+  setMError(""); setMStatus("-");
+
+  if(mode==="new"){
+    $("modalTitle").textContent="新規登録";
+    fillForm({cid:"",name:"",age:"",contact:"",contactMethod:"",joinCount:"",memo:""});
+    $("btnDelete").style.display="none";
+  }else{
+    $("modalTitle").textContent="編集";
+    fillForm(c);
+    $("btnDelete").style.display="inline-flex";
+  }
+}
+function closeModal(){
+  $("modalBack").style.display="none";
+  $("modalBack").setAttribute("aria-hidden","true");
+}
+$("btnClose").onclick = closeModal;
+$("modalBack").addEventListener("click",(e)=>{
+  if(e.target === $("modalBack")) closeModal();
+});
+
+$("btnNew").onclick = ()=> openModal("new");
+
+/* ===== フォーム ===== */
+function normalizeContactKeepZero(v){
+  // 先頭0保持のため文字列化、全角→半角、空白除去（必要最低限）
+  const s = String(v ?? "").trim()
+    .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/\s+/g,"");
+  return s;
+}
+
+function fillForm(c){
+  $("cid").value = c.cid || "";
+  $("cName").value = c.name || "";
+  $("cAge").value = c.age || "";
+  $("cContact").value = normalizeContactKeepZero(c.contact || "");
+  $("cContactMethod").value = c.contactMethod || "";
+  $("cJoinCount").value = (c.joinCount ?? "");
+  $("cMemo").value = c.memo || "";
+}
+
+function clearForm(){
+  fillForm({cid:"",name:"",age:"",contact:"",contactMethod:"",joinCount:"",memo:""});
+}
+
+/* ===== 保存/削除 ===== */
+$("btnSave").onclick = async ()=>{
+  setMError("");
+  const name = $("cName").value.trim();
+  if(!name){ alert("名前は必須です"); return; }
+
+  const joinCountRaw = $("cJoinCount").value.trim();
+  const joinCount = joinCountRaw === "" ? "" : String(Math.max(0, parseInt(joinCountRaw,10) || 0));
+
+  const c = {
+    cid: $("cid").value.trim(),
+    name,
+    age: $("cAge").value.trim(),
+    // ✅ 先頭0保持
+    contact: normalizeContactKeepZero($("cContact").value),
+    contactMethod: $("cContactMethod").value.trim(),
+    joinCount,
+    memo: $("cMemo").value.trim()
+  };
+
+  try{
+    setMStatus("保存中…");
+    await apiUpsert(c);
+    customers = await apiList();
+    setMStatus("保存しました");
+    setStatus("OK");
+    render();
+    closeModal();
+  }catch(err){
+    setMStatus("-");
+    setMError("保存に失敗： " + (err.message || err));
+  }
+};
+
+$("btnClear").onclick = ()=>{ setMError(""); clearForm(); };
+
+$("btnDelete").onclick = async ()=>{
+  setMError("");
+  const cid = ($("cid").value||"").trim();
+  if(!cid){ setMError("削除できません：cid が空です"); return; }
+  if(!confirm("削除しますか？")) return;
+
+  try{
+    setMStatus("削除中…");
+    await apiDelete(cid);
+    customers = await apiList();
+    setMStatus("削除しました");
+    setStatus("OK");
+    render();
+    closeModal();
+  }catch(err){
+    setMStatus("-");
+    setMError("削除に失敗： " + (err.message || err));
+  }
+};
+
+/* ===== 表示 ===== */
+function render(){
+  const q = $("q").value.trim();
+  const list = q
+    ? customers.filter(c=>{
+        const s = `${c.name||""} ${c.contact||""}`.toLowerCase();
+        return s.includes(q.toLowerCase());
+      })
+    : customers;
+
+  $("count").textContent = list.length + "件";
+
+  if(!list.length){
+    $("list").innerHTML = `<div class="meta">顧客がいません</div>`;
+    return;
+  }
+
+  $("list").innerHTML = list.map(c=>{
+    const origIdx = customers.indexOf(c);
+    return `
+      <div class="item">
+        <div>
+          <div class="title">${escapeHtml(c.name||"")}</div>
+          <div class="subline">
+            年齢:${escapeHtml(c.age||"-")}
+            ｜連絡先:${escapeHtml(c.contact||"-")}
+            ｜方法:${escapeHtml(c.contactMethod||"-")}
+            ｜参加:${escapeHtml(c.joinCount||"0")}回
+            ${c.memo ? "｜" + escapeHtml(c.memo) : ""}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button"
+            data-edit-cid="${escapeHtml(c.cid||"")}"
+            data-edit-name="${escapeHtml(c.name||"")}"
+            data-orig-idx="${origIdx}">編集</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("[data-edit-name]").forEach(b=>{
+    b.onclick = ()=>{
+      const cid = (b.dataset.editCid||"").trim();
+      const name = (b.dataset.editName||"").trim();
+      const origIdx = parseInt(b.dataset.origIdx,10);
+
+      let c = null;
+      if(cid) c = customers.find(x=>String(x.cid||"")===cid);
+      if(!c && name) c = customers.find(x=>String(x.name||"")===name);
+      if(!c && Number.isFinite(origIdx) && origIdx >= 0) c = customers[origIdx];
+      if(!c) return;
+
+      openModal("edit", c);
+    };
+  });
+}
+
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+$("q").oninput = render;
+
+/* ===== 起動 ===== */
+(async()=>{
+  try{
+    setError("");
+    setStatus("読み込み中…");
+    customers = await apiList();
+
+    // ✅ 連絡先の先頭0が落ちてるデータがあっても表示は文字列として出す
+    customers = customers.map(c=>({
+      ...c,
+      contact: normalizeContactKeepZero(c.contact || "")
+    }));
+
+    setStatus("OK");
+    render();
+  }catch(err){
+    setStatus("-");
+    setError("読み込みに失敗： " + (err.message || err));
+  }
+})();
+</script>
+
+</body>
+</html>

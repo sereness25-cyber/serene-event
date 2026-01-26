@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>イベントカレンダー</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 40px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 10px;border-radius:12px;cursor:pointer;
+  font-size:12px;
+  text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:6px;
+  box-shadow:0 6px 16px rgba(15,23,42,.06);
+}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:#b91c1c}
+
+.week{
+  margin-top:10px;
+  display:grid;grid-template-columns:repeat(7,1fr);gap:10px;
+  font-size:12px;color:var(--muted);
+}
+.grid{
+  margin-top:8px;
+  display:grid;grid-template-columns:repeat(7,1fr);gap:10px;
+}
+.day{
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+  min-height:92px;
+  padding:10px;
+}
+.day .num{font-weight:700;font-size:14px}
+.day.muted{opacity:.35}
+.day.today{outline:2px solid rgba(79,124,255,.25)}
+
+.chip{
+  margin-top:6px;
+  border:1px solid rgba(79,124,255,.25);
+  background:rgba(79,124,255,.08);
+  color:#1f3b8f;
+  border-radius:12px;
+  padding:6px 8px;
+  font-size:12px;
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.moreBtn{
+  margin-top:4px;
+  font-size:11px;
+  color:var(--muted);
+  cursor:pointer;
+  padding-left:4px;
+}
+
+/* modal */
+.modalBack{
+  position:fixed;inset:0;
+  background:rgba(15,23,42,.35);
+  display:none;align-items:center;justify-content:center;
+}
+.modal{
+  width:min(720px,100%);
+  background:#fff;border-radius:16px;
+  box-shadow:0 18px 60px rgba(15,23,42,.25);
+}
+.modalHd{
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.modalBd{padding:12px 14px}
+.evCard{
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:10px 12px;
+  margin-bottom:10px;
+}
+.evName{font-weight:800}
+.evMeta{font-size:12px;color:var(--muted);margin-top:4px}
+.evRow{font-size:13px;margin-top:6px}
+
+/* LINE予約フォーム */
+.lineReserveBox{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px;}
+.reserveForm{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#fafbff;}
+.reserveForm .ttl{font-weight:800;margin:0 0 8px 0;font-size:13px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:520px){ .fgrid{grid-template-columns:1fr} }
+.fi{display:flex;flex-direction:column;gap:6px;}
+.fi label{font-size:12px;color:var(--muted)}
+.fi input{padding:10px 10px;border-radius:12px;border:1px solid var(--line);font-size:14px;background:#fff;}
+.smallNote{font-size:11px;color:var(--muted);margin-top:6px}
+.formBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.formBtns .btnLike{
+  flex:1; min-width:220px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:12px 14px;border-radius:999px;
+  border:1px solid rgba(0,0,0,.08);
+  background:#fff;
+  box-shadow:0 12px 36px rgba(15,23,42,.18);
+  cursor:pointer;
+  font-weight:800;
+  text-decoration:none;color:inherit;
+}
+.formBtns .btnLike.secondary{box-shadow:none;background:#fff;border:1px solid var(--line);}
+.warnText{font-size:12px;color:#b45309;margin-top:6px}
+
+.copyBox{
+  margin-top:8px;
+  display:none;
+  border:1px dashed var(--line);
+  border-radius:12px;
+  background:#fff;
+  padding:10px;
+}
+.copyBox .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.copyBox textarea{
+  width:100%; min-height:120px; resize:vertical;
+  padding:10px; border-radius:12px; border:1px solid var(--line);
+  font-size:12px;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+/* 画像保存中 */
+.saving{opacity:.65;pointer-events:none;filter:grayscale(.15);}
+
+/* ===== ロゴ＋タイトル 横並び調整（最終版） ===== */
+
+header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:240px;
+}
+
+.logo{
+  width:64px;
+  height:64px;
+  min-width:64px;
+  min-height:64px;
+  border-radius:18px;
+  background:#fff;
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;   /* ← 重要 */
+}
+
+.logo img{
+  width:100%;
+  height:100%;
+  object-fit:cover;  /* ← 枠いっぱいにする核心 */
+  display:block;
+}
+
+.brand h1{
+  margin:0;
+  font-size:20px;   /* 18 → 20 */
+  font-weight:700;
+  line-height:1.25;
+}
+
+.brand .sub{
+  margin-top:3px;
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.2;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">
+    <div class="logo">
+  <img src="./logo.png" alt="ロゴ">
+</div>
+    <div>
+      <h1>イベントカレンダー</h1>
+     
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="btn" id="btnSavePng">📷 画像保存</button>
+    <button class="btn" id="btnReload">更新</button>
+  </div>
+</header>
+
+<section class="card" id="scheduleCard" style="margin-top:12px">
+  <div class="hd">
+    <button class="btn" id="prev">‹</button>
+    <div id="monthTitle"></div>
+    <button class="btn" id="next">›</button>
+    <span class="meta" id="status"></span>
+    <span class="err" id="err"></span>
+  </div>
+  <div class="bd">
+    <div class="week">
+      <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+</section>
+</div>
+
+<div class="modalBack" id="modalBack">
+  <div class="modal">
+    <div class="modalHd">
+      <div id="mTitle">イベント</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn" id="btnBackList" style="display:none">一覧に戻る</button>
+        <button class="btn" id="btnCloseModal">閉じる</button>
+      </div>
+    </div>
+    <div class="modalBd" id="mBody"></div>
+  </div>
+</div>
+
+<script>
+/* ===========================
+   設定
+=========================== */
+const API_URL="https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+const LINE_ADD_URL="https://lin.ee/oP0e2Kf";
+const LINE_TO = "@820theos";
+
+const $=id=>document.getElementById(id);
+
+let events=[];
+let view=new Date();
+let byDay={};
+let byId={};
+let lastListDay=null;
+
+/* ===========================
+   共通
+=========================== */
+function pad(n){return String(n).padStart(2,"0")}
+
+function openModal(){ $("modalBack").style.display="flex"; }
+function closeModal(){
+  $("modalBack").style.display="none";
+  $("btnBackList").style.display="none";
+  lastListDay=null;
+}
+$("btnCloseModal").onclick = closeModal;
+
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+function formatDateJP(ymd){
+  if(!ymd) return "";
+  const [y,m,d]=String(ymd).split("-");
+  if(!y || !m || !d) return String(ymd);
+  return `${y}年${Number(m)}月${Number(d)}日`;
+}
+
+function isIsoLike(v){
+  if(!v) return false;
+  const s = String(v).trim();
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(s);
+}
+function cleanPay(v){
+  if(!v) return "";
+  const s = String(v).trim();
+  if(!s) return "";
+  if(isIsoLike(s)) return "";
+  return s;
+}
+function cleanDeadline(v){
+  if(!v) return "";
+  const s = String(v).trim();
+  if(!s) return "";
+  if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)){
+    const [y,m,d]=s.split("-");
+    return `${y}年${Number(m)}月${Number(d)}日`;
+  }
+  if(isIsoLike(s)) return "";
+  return s;
+}
+
+function normalizeEvent(e){
+  const title = e.title ?? e.name ?? "(無題)";
+  const date  = e.date ?? e.eventDate ?? "";
+  const time  = e.time ?? "";
+  const timeFrom = e.timeFrom ?? "";
+  const timeTo   = e.timeTo ?? "";
+  const place = e.place ?? "";
+  const priceM = e.priceM ?? e.feeM ?? "";
+  const priceF = e.priceF ?? e.feeF ?? "";
+  const slots  = e.slots ?? "";
+  const payMethod = e.payMethod ?? "";
+  const pay    = e.pay ?? e.payment ?? payMethod ?? "";
+  const age    = e.age ?? "";
+  const note   = e.note ?? "";
+  const memo   = e.memo ?? "";
+  const target = e.target ?? "";
+  const deadline = e.deadline ?? "";
+  const id = (e.id!=null)? String(e.id) : "";
+  return {id,title,date,time,timeFrom,timeTo,place,priceM,priceF,slots,pay,payMethod,age,note,memo,target,deadline};
+}
+
+/* ===========================
+   データ取得
+=========================== */
+async function loadEvents(){
+  $("err").textContent="";
+  $("status").textContent="読み込み中…";
+
+  const r = await fetch(API_URL+"?action=list",{cache:"no-store"});
+  const j = await r.json();
+  events = j.events || [];
+
+  byDay={};
+  byId={};
+
+  for(const e of events){
+    const n = normalizeEvent(e);
+    if(n.id) byId[n.id] = e;
+    if(!n.date) continue;
+    (byDay[n.date]=byDay[n.date]||[]).push(e);
+  }
+
+  Object.keys(byDay).forEach(k=>{
+    byDay[k].sort((a,b)=>{
+      const ta=(a.timeFrom||a.time||"99:99");
+      const tb=(b.timeFrom||b.time||"99:99");
+      if(ta<tb) return -1;
+      if(ta>tb) return 1;
+      const na=(a.title||a.name||"");
+      const nb=(b.title||b.name||"");
+      return String(na).localeCompare(String(nb));
+    });
+  });
+
+  $("status").textContent="OK";
+}
+
+/* ===========================
+   画像保存
+=========================== */
+async function saveScheduleAsPng(){
+  const target = $("scheduleCard");
+  if(!target) return;
+
+  const btn = $("btnSavePng");
+  const prevText = btn?.textContent || "";
+  if(btn) btn.textContent = "作成中…";
+  target.classList.add("saving");
+
+  try{
+    const canvas = await html2canvas(target, {
+      scale: Math.min(2, window.devicePixelRatio || 1),
+      useCORS: true,
+      backgroundColor: null
+    });
+
+    const y=view.getFullYear(), m=view.getMonth()+1;
+    const filename = `event-calendar_${y}-${String(m).padStart(2,"0")}.png`;
+
+    canvas.toBlob((blob)=>{
+      if(!blob){
+        window.open(canvas.toDataURL("image/png"), "_blank");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    }, "image/png");
+  }catch(err){
+    alert("画像保存に失敗しました。もう一度お試しください。");
+    console.error(err);
+  }finally{
+    target.classList.remove("saving");
+    if(btn) btn.textContent = prevText || "📷 画像保存";
+  }
+}
+$("btnSavePng").onclick = saveScheduleAsPng;
+
+/* ===========================
+   LINE 送信前テキスト & 起動
+=========================== */
+function isMobileLineCapable(){
+  const ua = navigator.userAgent || "";
+  return /iPhone|iPad|iPod|Android/i.test(ua);
+}
+
+function buildLinePrefillMessage(n, form){
+  const dateJP = formatDateJP(n.date);
+  const timeStr =
+    (n.timeFrom || n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` :
+    (n.time ? String(n.time) : "");
+
+  const lines = [
+    "【イベント予約】",
+    `イベント：${n.title || ""}`,
+    (dateJP || timeStr) ? `日時：${dateJP} ${timeStr}`.trim() : "",
+    n.place ? `場所：${n.place}` : "",
+    "",
+    "【お客様情報】",
+    `お名前：${form.name || ""}`,
+    `年齢：${form.age || ""}`,
+    `電話番号：${form.tel || ""}`,
+    `お住まい：${form.area || ""}`
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+// スマホ：公式LINE宛て（宛先選択なし）で開く
+function buildLineDeepLink(message){
+  return `line://oaMessage/${encodeURIComponent(LINE_TO)}/?${encodeURIComponent(message)}`;
+}
+
+function openLineReserve(message){
+  if(isMobileLineCapable()){
+    location.href = buildLineDeepLink(message);
+    // LINE未インストール等の保険
+    setTimeout(()=>{ location.href = LINE_ADD_URL; }, 900);
+  }else{
+    // PC：line.me に吸われやすいので、コピー導線を出す
+    // （友だち追加ページも開ける）
+    window.open(LINE_ADD_URL, "_blank");
+  }
+}
+
+/* ===========================
+   詳細モーダル
+=========================== */
+function renderEventDetail(e){
+  const n = normalizeEvent(e);
+
+  const dateJP = formatDateJP(n.date);
+  const timeStr =
+    (n.timeFrom || n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` :
+    (n.time ? String(n.time) : "");
+
+  const priceStr = (n.priceM || n.priceF) ? `男性：${n.priceM||"-"} / 女性：${n.priceF||"-"}` : "";
+  const slotsStr = (n.slots!=="" && n.slots!=null) ? String(n.slots) : "";
+  const ageStr   = (n.age!=="" && n.age!=null) ? String(n.age) : "";
+
+  const payStr   = cleanPay(n.payMethod || n.pay);
+  const deadlineStr = cleanDeadline(n.deadline);
+  const targetStr = String(n.target||"").trim();
+
+  const noteStr = String(n.note||"").trim();
+  const memoStr = String(n.memo||"").trim();
+
+  $("mTitle").textContent="イベント詳細";
+  $("mBody").innerHTML = `
+    <div class="evCard">
+      <div class="evName">${escapeHtml(n.title)}</div>
+      <div class="evMeta">${escapeHtml(dateJP)} ${escapeHtml(timeStr)}</div>
+
+      ${n.place ? `<div class="evRow">場所：${escapeHtml(n.place)}</div>` : ``}
+      ${priceStr ? `<div class="evRow">料金：${escapeHtml(priceStr)}</div>` : ``}
+      ${slotsStr ? `<div class="evRow">募集：${escapeHtml(slotsStr)}名</div>` : ``}
+      ${ageStr ? `<div class="evRow">対象年齢：${escapeHtml(ageStr)}</div>` : ``}
+
+      ${targetStr ? `<div class="evRow">対象：${escapeHtml(targetStr)}</div>` : ``}
+      ${deadlineStr ? `<div class="evRow">〆切：${escapeHtml(deadlineStr)}</div>` : ``}
+      ${payStr ? `<div class="evRow">支払方法：${escapeHtml(payStr)}</div>` : ``}
+
+      ${noteStr ? `<div class="evRow">種類：${escapeHtml(noteStr)}</div>` : ``}
+      ${memoStr ? `<div class="evRow">メモ：${escapeHtml(memoStr)}</div>` : ``}
+
+      <div class="lineReserveBox">
+        <div class="reserveForm">
+          <p class="ttl">LINE予約（入力してから送信）</p>
+          <div class="fgrid">
+            <div class="fi">
+              <label>お名前</label>
+              <input id="rfName" type="text" placeholder="例：山田 花子">
+            </div>
+            <div class="fi">
+              <label>年齢</label>
+              <input id="rfAge" type="number" inputmode="numeric" placeholder="例：32">
+            </div>
+            <div class="fi">
+              <label>電話番号</label>
+              <input id="rfTel" type="tel" inputmode="tel" placeholder="例：09012345678">
+            </div>
+            <div class="fi">
+              <label>お住まい</label>
+              <input id="rfArea" type="text" placeholder="例：秋田市">
+            </div>
+          </div>
+
+          <div class="smallNote">
+            ※スマホ：公式LINE（${escapeHtml(LINE_TO)}）のトークが開き、入力欄に予約文が入ります（送信はあなたが行います）。<br>
+            ※PC：友だち追加を開き、下の「コピー」から本文を貼り付けて送ってください。
+          </div>
+
+          <div class="formBtns">
+            <a class="btnLike" id="btnLinePrefill" href="#">
+              <span class="dot" style="width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:900">LINE</span>
+              LINE予約を開く
+            </a>
+            <a class="btnLike secondary" href="${LINE_ADD_URL}" target="_blank" rel="noopener noreferrer">
+              友だち追加（まだの方）
+            </a>
+          </div>
+
+          <div class="copyBox" id="copyBox">
+            <div class="row">
+              <div style="font-weight:800;font-size:12px;">PC用：予約文コピー</div>
+              <button class="btn" id="btnCopy">📋 コピー</button>
+            </div>
+            <textarea id="copyText" readonly></textarea>
+          </div>
+
+          <div class="warnText" id="rfWarn" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const btn = document.getElementById("btnLinePrefill");
+  const warn = document.getElementById("rfWarn");
+  const copyBox = document.getElementById("copyBox");
+  const copyText = document.getElementById("copyText");
+
+  function updateActions(){
+    const form = {
+      name: (document.getElementById("rfName")?.value || "").trim(),
+      age:  (document.getElementById("rfAge")?.value || "").trim(),
+      tel:  (document.getElementById("rfTel")?.value || "").trim(),
+      area: (document.getElementById("rfArea")?.value || "").trim(),
+    };
+
+    const msg = buildLinePrefillMessage(n, form);
+
+    // ボタン押下で開く（href直打ちはしない）
+    btn.onclick = (ev)=>{
+      ev.preventDefault();
+      openLineReserve(msg);
+    };
+
+    // PC用コピー表示
+    if(!isMobileLineCapable()){
+      copyBox.style.display = "block";
+      copyText.value = msg;
+      const btnCopy = document.getElementById("btnCopy");
+      btnCopy.onclick = async ()=>{
+        try{
+          await navigator.clipboard.writeText(msg);
+          btnCopy.textContent = "✅ コピー済み";
+          setTimeout(()=>btnCopy.textContent="📋 コピー", 1200);
+        }catch{
+          // clipboard失敗時：選択してコピー
+          copyText.focus();
+          copyText.select();
+          document.execCommand("copy");
+        }
+      };
+    }else{
+      copyBox.style.display = "none";
+    }
+
+    const missing = [];
+    if(!form.name) missing.push("お名前");
+    if(!form.age)  missing.push("年齢");
+    if(!form.tel)  missing.push("電話番号");
+    if(!form.area) missing.push("お住まい");
+
+    if(missing.length){
+      warn.style.display="block";
+      warn.textContent = `未入力：${missing.join(" / ")}（空でも送れますが、入力すると受付が早いです）`;
+    }else{
+      warn.style.display="none";
+      warn.textContent="";
+    }
+  }
+
+  ["rfName","rfAge","rfTel","rfArea"].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener("input", updateActions);
+  });
+  updateActions();
+
+  if(lastListDay){
+    $("btnBackList").style.display="inline-flex";
+  }else{
+    $("btnBackList").style.display="none";
+  }
+
+  openModal();
+}
+
+function openEventById(id){
+  const e = byId[String(id)];
+  if(!e) return;
+  renderEventDetail(e);
+}
+
+function openDayList(day){
+  const evs = byDay[day] || [];
+  lastListDay = day;
+
+  $("mTitle").textContent = `${formatDateJP(day)} のイベント`;
+  $("btnBackList").style.display="none";
+
+  if(!evs.length){
+    $("mBody").innerHTML = `<div class="meta">イベントがありません</div>`;
+    openModal();
+    return;
+  }
+
+  $("mBody").innerHTML = evs.map(e=>{
+    const n = normalizeEvent(e);
+    const timeStr =
+      (n.timeFrom || n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` :
+      (n.time ? String(n.time) : "");
+
+    const deadlineStr = cleanDeadline(n.deadline);
+    const payStr = cleanPay(n.payMethod || n.pay);
+
+    const sub = [
+      timeStr ? `🕒 ${timeStr}` : "",
+      n.place ? `📍 ${n.place}` : "",
+      (n.priceM||n.priceF) ? `💰 男${n.priceM||"-"} / 女${n.priceF||"-"}` : "",
+      n.target ? `🎯 ${n.target}` : "",
+      deadlineStr ? `⏳ 〆切 ${deadlineStr}` : "",
+      payStr ? `💳 ${payStr}` : ""
+    ].filter(Boolean).join("  ");
+
+    return `
+      <div class="evCard" style="cursor:pointer" data-open-eid="${escapeHtml(n.id)}">
+        <div class="evName">${escapeHtml(n.title)}</div>
+        ${sub ? `<div class="evMeta">${escapeHtml(sub)}</div>` : `<div class="evMeta"></div>`}
+      </div>
+    `;
+  }).join("");
+
+  $("mBody").querySelectorAll("[data-open-eid]").forEach(card=>{
+    card.onclick = ()=>{
+      const eid = card.dataset.openEid;
+      $("btnBackList").style.display="inline-flex";
+      openEventById(eid);
+    };
+  });
+
+  openModal();
+}
+$("btnBackList").onclick = ()=>{ if(lastListDay) openDayList(lastListDay); };
+
+/* ===========================
+   カレンダー描画
+=========================== */
+function render(){
+  const y=view.getFullYear(), m=view.getMonth();
+  $("monthTitle").textContent=`${y}年${m+1}月`;
+
+  const first=new Date(y,m,1), last=new Date(y,m+1,0);
+  const todayStr = `${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`;
+
+  let html="";
+  for(let i=0;i<42;i++){
+    const d=i-first.getDay()+1;
+    const inM=d>0 && d<=last.getDate();
+    const day=inM?`${y}-${pad(m+1)}-${pad(d)}`:"";
+    const evs=inM?(byDay[day]||[]):[];
+
+   let chips="";
+evs.slice(0,2).forEach(e=>{
+  const n = normalizeEvent(e);
+
+  const timeStr =
+    (n.timeFrom || n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` :
+    (n.time ? String(n.time) : "");
+
+  const label = timeStr ? `${n.title}（${timeStr}）` : n.title;
+
+  chips += `<div class="chip" data-eid="${escapeHtml(n.id)}">${escapeHtml(label)}</div>`;
+});
+    if(evs.length>2){
+      chips+=`<div class="moreBtn" data-day="${escapeHtml(day)}">+${evs.length-2}件</div>`;
+    }
+
+    const cls = ["day", inM?"":"muted", (day && day===todayStr)?"today":""].join(" ");
+    html+=`<div class="${cls}"><div class="num">${inM?d:""}</div>${chips}</div>`;
+  }
+
+  $("grid").innerHTML=html;
+
+  $("grid").querySelectorAll("[data-eid]").forEach(el=>{
+    el.onclick=()=>{ lastListDay=null; openEventById(el.dataset.eid); };
+  });
+  $("grid").querySelectorAll("[data-day]").forEach(el=>{
+    el.onclick=()=>{ openDayList(el.dataset.day); };
+  });
+}
+
+/* ===========================
+   操作
+=========================== */
+$("prev").onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()-1,1);render()}
+$("next").onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);render()}
+$("btnReload").onclick=async()=>{await loadEvents();render()}
+
+/* ===========================
+   起動
+=========================== */
+(async()=>{
+  await loadEvents();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>過去イベント</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px; --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 40px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted)}
+
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 10px;border-radius:10px;cursor:pointer;
+  font-size:12px;
+  text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:6px;
+}
+.btn.danger{border-color:#fca5a5;color:#b91c1c}
+.input{border:1px solid var(--line);padding:8px 10px;border-radius:10px;width:100%}
+
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:10px}
+
+.item{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;
+}
+.item .title{font-weight:800}
+.item .subline{font-size:12px;color:var(--muted);margin-top:4px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.err{color:#b91c1c;font-size:12px}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>過去イベント</h1>
+        <div class="sub">コピーして新規イベントを作成できます</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <!-- ✅同じ階層固定 -->
+      <a class="btn" id="backAdmin" href="./admin.html">管理へ戻る</a>
+
+      <label class="meta" style="display:flex;gap:6px;align-items:center;user-select:none">
+        <input type="checkbox" id="copyToToday">
+        コピー時に日付を「今日」にする
+      </label>
+
+      <button class="btn" id="btnReload">更新</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="hd">
+      <div style="font-weight:800">一覧</div>
+      <div class="meta" id="count">-</div>
+      <div style="flex:1"></div>
+      <input class="input" id="q" placeholder="検索（タイトル/場所/メモ…）">
+      <div class="meta" id="status">-</div>
+    </div>
+    <div class="bd">
+      <div class="list" id="list"></div>
+      <div class="err" id="err" style="margin-top:10px"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ========= 設定 ========= */
+const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+const ADMIN_KEY = "kei591117";
+const $ = id => document.getElementById(id);
+let events = [];
+
+/* ========= 管理へ戻る：同階層へ強制 ========= */
+const ADMIN_PAGE = "./admin.html";
+$("backAdmin").setAttribute("href", ADMIN_PAGE);
+$("backAdmin").addEventListener("click",(e)=>{
+  e.preventDefault();
+  // assign は履歴に残る。replace にすると「戻る」で past に戻らない
+  window.location.assign(ADMIN_PAGE);
+});
+
+/* ========= 日付処理（完全対応） ========= */
+function parseDateFlex(v){
+  if(v===null||v===undefined||v==="") return null;
+
+  if(Object.prototype.toString.call(v)==="[object Date]" && !isNaN(v.getTime())) return v;
+
+  if(typeof v==="number"){
+    if(v>20000 && v<80000){
+      const base=new Date(Date.UTC(1899,11,30));
+      return new Date(base.getTime()+v*86400000);
+    }
+    const d=new Date(v);
+    return isNaN(d)?null:d;
+  }
+
+  const s=String(v).trim();
+
+  if(/^\d{4,6}$/.test(s)){
+    const n=Number(s);
+    if(n>20000 && n<80000){
+      const base=new Date(Date.UTC(1899,11,30));
+      return new Date(base.getTime()+n*86400000);
+    }
+  }
+
+  const jp=s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if(jp) return new Date(jp[1],jp[2]-1,jp[3]);
+
+  const m=s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+  if(m) return new Date(m[1],m[2]-1,m[3]);
+
+  const d=new Date(s);
+  return isNaN(d)?null:d;
+}
+
+function isPastEvent(e){
+  const raw = e.date ?? e.eventDate ?? e.startDate ?? "";
+  const d=parseDateFlex(raw);
+  if(!d) return false;
+  const today=new Date(); today.setHours(0,0,0,0);
+  d.setHours(0,0,0,0);
+  return d<today;
+}
+
+function fmtJP(v){
+  const d=parseDateFlex(v);
+  if(!d) return String(v||"-");
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function normalizeEvent(e){
+  const title = e.title ?? e.name ?? "(無題)";
+  const date  = e.date ?? e.eventDate ?? e.startDate ?? "";
+  const time  =
+    (e.timeFrom || e.timeTo) ? `${e.timeFrom||""}${e.timeTo?("〜"+e.timeTo):"〜"}` :
+    (e.time ?? "");
+  const place = e.place ?? "";
+  const note  = e.note ?? e.memo ?? e.description ?? "";
+  return {title,date,time,place,note};
+}
+
+function sortByDateDesc(a,b){
+  const da=parseDateFlex(a.date), db=parseDateFlex(b.date);
+  const ta=da?da.getTime():0, tb=db?db.getTime():0;
+  return tb-ta;
+}
+
+/* ========= API ========= */
+async function fetchJson(url, opt){
+  const r = await fetch(url, Object.assign({cache:"no-store"}, opt||{}));
+  const j = await r.json().catch(()=> ({}));
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+
+async function apiPastList(){
+  try{
+    const j = await fetchJson(API_URL + "?action=past:list");
+    return j.events || j.data?.events || [];
+  }catch(_){
+    const j = await fetchJson(API_URL + "?action=list");
+    return j.events || j.data?.events || [];
+  }
+}
+
+async function apiUpsert(ev){
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ key: ADMIN_KEY, action:"upsert", event: ev })
+  });
+  return j.events || j.data?.events || [];
+}
+async function apiDelete(id){
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ key: ADMIN_KEY, action:"delete", id })
+  });
+  return j.events || j.data?.events || [];
+}
+
+/* ========= 描画 ========= */
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+function render(){
+  $("err").textContent = "";
+
+  const q=($("q").value||"").toLowerCase();
+  const past = events
+    .filter(isPastEvent)
+    .filter(e=>{
+      if(!q) return true;
+      const n = normalizeEvent(e);
+      const s = `${n.title} ${n.place} ${n.note}`.toLowerCase();
+      return s.includes(q);
+    })
+    .sort(sortByDateDesc);
+
+  $("count").textContent=`${past.length}件`;
+
+  if(!past.length){
+    $("list").innerHTML=`<div class="meta">過去イベントがありません</div>`;
+    return;
+  }
+
+  $("list").innerHTML=past.map(e=>{
+    const n = normalizeEvent(e);
+    return `
+      <div class="item">
+        <div>
+          <div class="title">${fmtJP(n.date)}｜${escapeHtml(n.title)}</div>
+          <div class="subline">${escapeHtml(n.time||"-")}・${escapeHtml(n.place||"-")}${n.note?("・"+escapeHtml(n.note)):""}</div>
+        </div>
+        <div class="actions">
+          <button class="btn" data-copy="${escapeHtml(e.id)}">コピー</button>
+          <button class="btn danger" data-del="${escapeHtml(e.id)}">削除</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("[data-copy]").forEach(b=>{
+    b.onclick=async()=>{
+      const src=events.find(x=>String(x.id)===String(b.dataset.copy));
+      if(!src) return;
+
+      const c = {...src, id:""};
+
+      if($("copyToToday").checked){
+        const t = new Date(); t.setHours(0,0,0,0);
+        const y=t.getFullYear();
+        const m=String(t.getMonth()+1).padStart(2,"0");
+        const d=String(t.getDate()).padStart(2,"0");
+        c.date = `${y}-${m}-${d}`;
+        c.eventDate = c.date;
+        c.startDate = c.date;
+      }
+
+      try{
+        $("status").textContent="コピー中…";
+        await apiUpsert(c);
+        alert("コピーして新規イベントを作成しました（管理画面で確認してください）");
+        $("status").textContent="OK";
+      }catch(err){
+        $("status").textContent="失敗";
+        $("err").textContent = "コピーに失敗： " + (err.message || err);
+      }
+    };
+  });
+
+  document.querySelectorAll("[data-del]").forEach(b=>{
+    b.onclick=async()=>{
+      if(!confirm("削除しますか？")) return;
+      try{
+        $("status").textContent="削除中…";
+        await apiDelete(b.dataset.del);
+        await reload();
+      }catch(err){
+        $("status").textContent="失敗";
+        $("err").textContent = "削除に失敗： " + (err.message || err);
+      }
+    };
+  });
+}
+
+/* ========= 起動 ========= */
+async function reload(){
+  $("status").textContent="読込中…";
+  $("err").textContent="";
+  try{
+    events = await apiPastList();
+    $("status").textContent="OK";
+    render();
+  }catch(err){
+    $("status").textContent="読込失敗";
+    $("err").textContent = "読み込みに失敗： " + (err.message || err);
+  }
+}
+$("btnReload").onclick=reload;
+$("q").oninput=render;
+
+reload();
+</script>
+</body>
+</html>

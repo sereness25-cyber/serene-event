@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>予約管理</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px; --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 60px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted)}
+
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 10px;border-radius:10px;cursor:pointer;
+  font-size:12px;
+  text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:6px;
+}
+.btn.primary{
+  background:linear-gradient(135deg,var(--pri),var(--pri2));
+  color:#fff;border:none;
+}
+.btn.danger{border-color:#fca5a5;color:#b91c1c}
+.input{
+  border:1px solid var(--line);
+  padding:10px 12px;
+  border-radius:12px;
+  width:100%;
+  background:#fff;
+  font-size:13px;
+}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:#b91c1c}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:900px){ .grid{grid-template-columns:1fr 1fr} }
+@media(max-width:520px){ .grid{grid-template-columns:1fr} }
+
+.badge{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:#fff}
+.badge.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.hint{font-size:12px;color:var(--muted);line-height:1.4}
+
+/* ===== 男女分割＋色分け（参加確定のみ） ===== */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:720px){ .split{grid-template-columns:1fr} }
+.box{border-radius:18px;padding:12px;box-shadow:var(--shadow);border:1px solid var(--line);}
+.box.male{background:#eff6ff;border-color:#bfdbfe;}
+.box.female{background:#fff1f2;border-color:#fecdd3;}
+.boxHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.boxHd .ttl{font-weight:900;font-size:14px}
+.boxHd .count{font-size:12px;font-weight:700;color:var(--muted)}
+.pCard{border-radius:14px;padding:10px;margin-bottom:8px;background:#fff;border:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pCard.male{ border-color:#dbeafe; }
+.pCard.female{ border-color:#ffe4e6; }
+.pName{font-weight:800}
+.pMeta{font-size:12px;color:var(--muted);margin-top:4px}
+.noteSex{font-size:12px;color:#b45309;margin-top:10px}
+.pActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ===== 追記：予約一覧ボタン（下） ===== */
+.bottomBar{
+  position:fixed;left:0; right:0; bottom:0;padding:10px;
+  background:rgba(246,247,251,.85);backdrop-filter: blur(8px);
+  border-top:1px solid var(--line);display:flex;justify-content:center;z-index:20;
+}
+.bottomBar .btnLike{
+  width:min(920px, calc(100% - 24px));
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:12px 14px;border-radius:999px;border:1px solid rgba(0,0,0,.08);
+  background:#fff;box-shadow:0 12px 36px rgba(15,23,42,.18);
+  cursor:pointer;font-weight:900;
+}
+
+/* ===== 追記：予約一覧モーダル ===== */
+.modalBack{position:fixed; inset:0;background:rgba(15,23,42,.35);display:none; align-items:center; justify-content:center;z-index:30;}
+.modal{width:min(860px, 96vw);max-height:86vh;background:#fff;border-radius:16px;box-shadow:0 18px 60px rgba(15,23,42,.25);overflow:hidden;display:flex;flex-direction:column;}
+.modalHd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.modalBd{padding:12px 14px;overflow:auto;}
+.rCard{
+  border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:10px;background:#fff;
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center
+}
+.rTitle{font-weight:900}
+.rMeta{font-size:12px;color:var(--muted);margin-top:4px}
+.rActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ===== ★追加：新規登録 折りたたみ ===== */
+.hdRow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
+.foldBtn{
+  border:1px solid var(--line);
+  background:#fff;
+  padding:6px 10px;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:12px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  user-select:none;
+}
+.foldBtn .chev{font-weight:900}
+.foldBody{display:block}
+.foldBody.isHidden{display:none}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <h1>参加者管理</h1>
+      <div class="sub">新規登録は「予約」→「参加確定」で参加者一覧に表示されます</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="btn" href="../admin.html">管理へ戻る</a>
+    <a class="btn" href="../customers/customers.html">顧客マスタ</a>
+  </div>
+</header>
+
+<section class="card">
+  <div class="hd">
+    <strong>イベント選択</strong>
+    <span class="meta" id="evStatus">-</span>
+    <span class="meta" id="loadedAt">-</span>
+  </div>
+  <div class="bd">
+    <select class="input" id="eventSel"></select>
+    <div class="hint" style="margin-top:8px">
+      ※イベントを選ぶと、「参加確定者」だけが下に表示されます。予約は下の「予約一覧」から確認できます。
+    </div>
+  </div>
+</section>
+
+<!-- ★新規登録カード（折りたたみ対応） -->
+<section class="card" style="margin-top:14px" id="newCard">
+  <div class="hd">
+    <div class="hdRow">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <strong>新規登録（まず予約に入る）</strong>
+        <span class="meta">名前 or 電話番号で顧客マスタから自動読込</span>
+        <span class="badge" id="autoBadge" style="display:none">自動読込</span>
+      </div>
+
+      <button class="foldBtn" id="btnToggleNew" type="button" aria-expanded="true">
+        <span class="chev" id="newChev">▲</span>
+        <span id="newFoldLabel">閉じる</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="bd foldBody" id="newBody">
+    <div class="grid">
+      <div>
+        <div class="meta" style="margin:0 0 6px">名前（必須）</div>
+        <input class="input" id="pName" placeholder="例）山田 花子">
+      </div>
+
+      <div>
+        <div class="meta" style="margin:0 0 6px">性別 <span style="color:#ef4444;font-weight:700">※必須</span></div>
+        <select class="input" id="pGender">
+          <option value="">選択してください</option>
+          <option value="M">男性</option>
+          <option value="F">女性</option>
+        </select>
+        <div class="hint" style="margin-top:4px">※参加確定後に「男女別・色分け表示」されます</div>
+      </div>
+
+      <div>
+        <div class="meta" style="margin:0 0 6px">年齢</div>
+        <input class="input" id="pAge" placeholder="例）32" inputmode="numeric">
+      </div>
+
+      <div>
+        <div class="meta" style="margin:0 0 6px">電話/連絡先</div>
+        <input class="input" id="pContact" placeholder="例）09012345678（先頭0もOK）" inputmode="tel">
+      </div>
+
+      <!-- ★追加：連絡方法 -->
+      <div>
+        <div class="meta" style="margin:0 0 6px">連絡方法</div>
+        <select class="input" id="pContactWay">
+          <option value="">未設定</option>
+          <option value="電話">電話</option>
+          <option value="SMS">SMS</option>
+          <option value="LINE">LINE</option>
+          <option value="メール">メール</option>
+          <option value="Instagram">Instagram</option>
+          <option value="Facebook">Facebook</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+
+      <div style="grid-column:1/-1">
+        <div class="meta" style="margin:0 0 6px">メモ（任意）</div>
+        <input class="input" id="pMemo" placeholder="例）紹介経由 / 次回案内OK">
+      </div>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" id="btnSave" type="button">予約として登録</button>
+      <button class="btn" id="btnClear" type="button">クリア</button>
+      <span class="meta" id="status">-</span>
+      <span class="err" id="err"></span>
+    </div>
+
+    <div class="hint" style="margin-top:10px">
+      ・新規登録は「予約一覧」に入ります。参加確定は予約一覧で行います。<br>
+      ・登録と同時に顧客マスタへも自動反映（GAS側の仕様）を想定。
+    </div>
+  </div>
+</section>
+
+<section class="card" style="margin-top:14px">
+  <div class="hd">
+    <strong>参加確定者（このイベント）</strong>
+    <input class="input" id="q" placeholder="検索（名前/連絡先/連絡方法）" style="max-width:260px">
+    <span class="meta" id="count">-</span>
+  </div>
+  <div class="bd">
+    <div class="split">
+      <div class="box male">
+        <div class="boxHd">
+          <div class="ttl">👨 男性（確定）</div>
+          <div class="count" id="cntM">0名</div>
+        </div>
+        <div id="listM"></div>
+      </div>
+
+      <div class="box female">
+        <div class="boxHd">
+          <div class="ttl">👩 女性（確定）</div>
+          <div class="count" id="cntF">0名</div>
+        </div>
+        <div id="listF"></div>
+      </div>
+    </div>
+
+    <div class="noteSex" id="sexWarn" style="display:none"></div>
+  </div>
+</section>
+
+</div>
+
+<!-- 予約一覧ボタン（画面下固定） -->
+<div class="bottomBar">
+  <button class="btnLike" id="btnOpenRes" type="button">
+    📋 予約一覧を開く（<span id="cntR">0</span>件）
+  </button>
+</div>
+
+<!-- 予約一覧モーダル -->
+<div class="modalBack" id="resBack">
+  <div class="modal">
+    <div class="modalHd">
+      <div style="font-weight:900">予約一覧（このイベント）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="meta" id="resMeta">-</span>
+        <button class="btn" id="btnCloseRes" type="button">閉じる</button>
+      </div>
+    </div>
+    <div class="modalBd" id="resBody"></div>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+const $ = id => document.getElementById(id);
+
+let events = [];
+let participantsRaw = [];
+let participants = [];     // 正規化＆重複排除後
+let customers = [];
+
+function setStatus(msg){ $("status").textContent = msg || "-"; }
+function setError(msg){ $("err").textContent = msg || ""; }
+function setEvStatus(msg){ $("evStatus").textContent = msg || "-"; }
+
+async function fetchJson(url, opt){
+  const res = await fetch(url, Object.assign({cache:"no-store"}, opt||{}));
+  const j = await res.json().catch(()=> ({}));
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+
+/* ===== ★追加：新規登録 折りたたみ（状態保存） ===== */
+const NEW_FOLD_KEY = "participants_newFold_v1";
+function setNewFold(isOpen){
+  const body = $("newBody");
+  const btn = $("btnToggleNew");
+  const chev = $("newChev");
+  const label = $("newFoldLabel");
+
+  if(isOpen){
+    body.classList.remove("isHidden");
+    btn.setAttribute("aria-expanded","true");
+    chev.textContent = "▲";
+    label.textContent = "閉じる";
+    localStorage.setItem(NEW_FOLD_KEY, "open");
+  }else{
+    body.classList.add("isHidden");
+    btn.setAttribute("aria-expanded","false");
+    chev.textContent = "▼";
+    label.textContent = "開く";
+    localStorage.setItem(NEW_FOLD_KEY, "closed");
+  }
+}
+function initNewFold(){
+  const saved = localStorage.getItem(NEW_FOLD_KEY);
+  const open = (saved !== "closed"); // 初期は開く
+  setNewFold(open);
+}
+$("btnToggleNew").onclick = ()=>{
+  const isOpen = $("btnToggleNew").getAttribute("aria-expanded") === "true";
+  setNewFold(!isOpen);
+};
+
+/* ===== normalize ===== */
+function zenkakuToHankakuNum(s){
+  return String(s??"").replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+}
+function normalizeName(s){
+  return String(s??"").trim().replace(/\s+/g," ").toLowerCase();
+}
+function normalizePhoneLike(s){
+  return zenkakuToHankakuNum(String(s??"")).replace(/[^\d]/g,"");
+}
+function normalizeGender(v){
+  const s = String(v??"").trim().toUpperCase();
+  if(s==="M" || s==="MALE" || s==="男" || s==="男性") return "M";
+  if(s==="F" || s==="FEMALE" || s==="女" || s==="女性") return "F";
+  return "";
+}
+function normalizeStatus(v){
+  const s = String(v??"").trim().toLowerCase();
+  if(s==="confirmed" || s==="ok" || s==="参加" || s==="確定") return "confirmed";
+  if(s==="reserved" || s==="reserve" || s==="予約") return "reserved";
+  return "reserved";
+}
+function nowIso(){ return new Date().toISOString(); }
+function makePid(){
+  if(window.crypto?.randomUUID) return crypto.randomUUID();
+  return "pid_" + Math.random().toString(16).slice(2) + "_" + Date.now();
+}
+
+/* ★追加：表示用に電話の先頭0を補正（フロント側で確実に） */
+function displayPhone(v){
+  const d = normalizePhoneLike(v);
+  if(!d) return "";
+  if(d.length === 9 || d.length === 10){
+    return d.startsWith("0") ? d : ("0" + d);
+  }
+  return d.startsWith("0") ? d : d;
+}
+
+/* ★追加：連絡方法の正規化 */
+function normalizeContactWay(v){
+  const s = String(v??"").trim();
+  if(!s) return "";
+  const u = s.toLowerCase();
+  if(u.includes("line")) return "LINE";
+  if(u.includes("sms")) return "SMS";
+  if(u.includes("mail") || u.includes("メール") || u.includes("email")) return "メール";
+  if(u.includes("insta")) return "Instagram";
+  if(u.includes("face")) return "Facebook";
+  if(u.includes("電話") || u.includes("tel") || u.includes("phone")) return "電話";
+  return s;
+}
+
+function showAutoBadge(on){
+  $("autoBadge").style.display = on ? "inline-flex" : "none";
+  $("autoBadge").className = on ? "badge ok" : "badge";
+}
+
+/* ===== API ===== */
+async function apiEvents(){
+  const j = await fetchJson(API_URL + "?action=list");
+  return j.events || [];
+}
+async function apiCustomers(){
+  const j = await fetchJson(API_URL + "?action=customers:list&nocache=1");
+  return j.customers || [];
+}
+async function apiParticipantsList(eventId){
+  const j = await fetchJson(API_URL + "?action=participants:list&eventId=" + encodeURIComponent(eventId));
+  return j.participants || [];
+}
+async function apiParticipantsUpsert(p){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"participants:upsert", participant:p })
+  });
+}
+async function apiParticipantsDelete(pid){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"participants:delete", pid })
+  });
+}
+/* ★追記：確定→予約に戻す（GASの participants:revert を使う） */
+async function apiParticipantsRevert(pid){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"participants:revert", pid })
+  });
+}
+
+/* ===== UI：イベント選択 ===== */
+function fmtDateJa(v){
+  if(!v) return "-";
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"\"").replaceAll("'","&#039;");
+}
+function buildEventSelect(){
+  const sel = $("eventSel");
+  if(!events.length){
+    sel.innerHTML = `<option value="">イベントがありません</option>`;
+    return;
+  }
+  const sorted = [...events].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  sel.innerHTML = sorted.map(e=>{
+    const label = `${fmtDateJa(e.date)}｜${e.title||e.name||"(無題)"}｜${e.place||"-"}`;
+    return `<option value="${escapeHtml(e.id)}">${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+/* ===== 顧客オートフィル ===== */
+let autoTimer = null;
+function scheduleAutoFill(){
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(tryAutoFillFromCustomers, 200);
+}
+function tryAutoFillFromCustomers(){
+  showAutoBadge(false);
+
+  const nameIn = normalizeName($("pName").value);
+  const phoneIn = normalizePhoneLike($("pContact").value);
+  if(!nameIn && !phoneIn) return;
+
+  let hit = null;
+  if(phoneIn) hit = customers.find(c => normalizePhoneLike(c.contact) === phoneIn);
+  if(!hit && nameIn) hit = customers.find(c => normalizeName(c.name) === nameIn);
+  if(!hit) return;
+
+  if(!$("pAge").value.trim() && hit.age) $("pAge").value = hit.age;
+  if(!$("pContact").value.trim() && hit.contact) $("pContact").value = displayPhone(hit.contact);
+
+  // ★顧客マスタ側のフィールド名に合わせて複数候補で読込
+  const cw = hit.contactWay ?? hit.contact_method ?? hit.contactMethod ?? hit.method ?? hit["連絡方法"] ?? hit["連絡手段"] ?? "";
+  if(!$("pContactWay").value && cw) $("pContactWay").value = normalizeContactWay(cw);
+
+  if(!$("pMemo").value.trim() && hit.memo) $("pMemo").value = hit.memo;
+
+  const g = normalizeGender(hit.gender ?? hit.sex ?? "");
+  if(!$("pGender").value && g) $("pGender").value = g;
+
+  showAutoBadge(true);
+}
+
+/* ===== 参加者データ：重複排除 ===== */
+function normalizeParticipants(raw){
+  const list = raw.map(p=>{
+    const pid = String(p.pid ?? p.participantId ?? p.id ?? "").trim();
+    return {
+      ...p,
+      pid,
+      gender: normalizeGender(p.gender),
+      status: normalizeStatus(p.status),
+      contact: displayPhone(p.contact),
+      // ★追加：連絡方法
+      contactWay: normalizeContactWay(p.contactWay ?? p.contact_method ?? p.contactMethod ?? p.method ?? p["連絡方法"] ?? p["連絡手段"] ?? ""),
+      updatedAt: p.updatedAt || p.ts || p.timestamp || "",
+      createdAt: p.createdAt || ""
+    };
+  });
+
+  const withPid = list.filter(x=>x.pid);
+  const noPid = list.filter(x=>!x.pid);
+
+  const map = {};
+  for(const x of withPid){
+    const key = x.pid;
+    const a = map[key];
+    if(!a){ map[key]=x; continue; }
+    const ta = Date.parse(a.updatedAt||"") || 0;
+    const tb = Date.parse(x.updatedAt||"") || 0;
+    map[key] = (tb >= ta) ? x : a;
+  }
+  return [...Object.values(map), ...noPid];
+}
+
+/* ===== 参加者一覧（確定のみ） ===== */
+function renderConfirmed(){
+  const q = $("q").value.trim().toLowerCase();
+
+  const confirmed = participants.filter(p => normalizeStatus(p.status) === "confirmed");
+  const filtered = q
+    ? confirmed.filter(p=>{
+        const s = `${p.name||""} ${p.contact||""} ${p.contactWay||""}`.toLowerCase();
+        return s.includes(q);
+      })
+    : confirmed;
+
+  $("count").textContent = `${filtered.length}件`;
+
+  const men = filtered.filter(p => normalizeGender(p.gender) === "M");
+  const women = filtered.filter(p => normalizeGender(p.gender) === "F");
+  const unknown = filtered.filter(p => !normalizeGender(p.gender));
+
+  $("cntM").textContent = `${men.length}名`;
+  $("cntF").textContent = `${women.length}名`;
+
+  const mk = (p, sex)=>`
+    <div class="pCard ${sex}">
+      <div>
+        <div class="pName">${escapeHtml(p.name||"-")}</div>
+        <div class="pMeta">
+          年齢:${escapeHtml(p.age||"-")}
+          ｜連絡先:${escapeHtml(p.contact||"-")}
+          ｜連絡方法:${escapeHtml(p.contactWay||"-")}
+        </div>
+      </div>
+      <div class="pActions">
+        ${p.pid ? `<button class="btn danger" data-del-confirm="${escapeHtml(p.pid)}">予約に戻す</button>` : ``}
+      </div>
+    </div>
+  `;
+
+  $("listM").innerHTML = men.length ? men.map(p=>mk(p,"male")).join("") : `<div class="meta">参加者がいません</div>`;
+  $("listF").innerHTML = women.length ? women.map(p=>mk(p,"female")).join("") : `<div class="meta">参加者がいません</div>`;
+
+  const sexWarn = $("sexWarn");
+  if(unknown.length){
+    sexWarn.style.display = "block";
+    sexWarn.textContent = `⚠ 性別が未設定の確定者が ${unknown.length}名います（予約一覧で性別を直してから確定してください）`;
+  }else{
+    sexWarn.style.display = "none";
+    sexWarn.textContent = "";
+  }
+}
+
+/* ===== 予約一覧（モーダル） ===== */
+function countReserved(){
+  return participants.filter(p => normalizeStatus(p.status) === "reserved").length;
+}
+function openResModal(){
+  $("resBack").style.display = "flex";
+  renderReservations();
+}
+function closeResModal(){
+  $("resBack").style.display = "none";
+}
+$("btnOpenRes").onclick = openResModal;
+$("btnCloseRes").onclick = closeResModal;
+$("resBack").addEventListener("click", (e)=>{
+  if(e.target === $("resBack")) closeResModal();
+});
+
+/* ★イベント委譲でボタン反応を安定化（Safari対策） */
+$("resBody").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  if(btn.dataset.confirm) confirmParticipant(btn.dataset.confirm);
+  if(btn.dataset.del) deleteReserved(btn.dataset.del);
+});
+$("listM").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  if(btn.dataset.delConfirm) revertConfirmedToReserved(btn.dataset.delConfirm);
+});
+$("listF").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  if(btn.dataset.delConfirm) revertConfirmedToReserved(btn.dataset.delConfirm);
+});
+
+async function confirmParticipant(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+
+  const p = participants.find(x => x.pid === pid);
+  if(!p){
+    alert("データが見つかりませんでした（pidが未設定の可能性）");
+    return;
+  }
+
+  setError("");
+  try{
+    setStatus("参加確定中…");
+
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: "confirmed",
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+
+    setStatus("参加確定しました");
+    renderReservations();
+    renderConfirmed();
+
+  }catch(err){
+    setStatus("-");
+    setError("参加確定に失敗： " + (err.message || err));
+  }
+}
+
+async function deleteReserved(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  if(!pid) return alert("pidがありません（古いデータの可能性）");
+  if(!confirm("この予約を完全に削除しますか？")) return;
+
+  setError("");
+  try{
+    setStatus("削除中…");
+    await apiParticipantsDelete(pid);
+    await reloadParticipants(eventId);
+    setStatus("削除しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("削除に失敗： " + (err.message || err));
+  }
+}
+
+/* ★変更：確定者の「削除」は完全削除ではなく、GASの participants:revert を使って予約に戻す */
+async function revertConfirmedToReserved(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  if(!pid) return alert("pidがありません（古いデータの可能性）");
+  if(!confirm("この参加確定者を「予約一覧」に戻しますか？")) return;
+
+  setError("");
+  try{
+    setStatus("予約に戻しています…");
+
+    await apiParticipantsRevert(pid);
+    await reloadParticipants(eventId);
+
+    setStatus("予約一覧に戻しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("戻す処理に失敗： " + (err.message || err));
+  }
+}
+
+function renderReservations(){
+  const reserved = participants.filter(p => normalizeStatus(p.status) === "reserved");
+
+  $("cntR").textContent = String(reserved.length);
+  $("resMeta").textContent = reserved.length ? `${reserved.length}件の予約` : "予約なし";
+
+  if(!reserved.length){
+    $("resBody").innerHTML = `<div class="meta">予約がありません</div>`;
+    return;
+  }
+
+  $("resBody").innerHTML = reserved.map(p=>{
+    const g = normalizeGender(p.gender);
+    const gLabel = g==="M" ? "男性" : (g==="F" ? "女性" : "未設定");
+    const meta = [
+      `性別:${gLabel}`,
+      `年齢:${p.age||"-"}`,
+      `連絡先:${displayPhone(p.contact)||"-"}`,
+      `連絡方法:${p.contactWay||"-"}`,
+      p.memo ? `メモ:${p.memo}` : ""
+    ].filter(Boolean).join(" ｜ ");
+
+    const confirmBtn = p.pid
+      ? `<button class="btn primary" data-confirm="${escapeHtml(p.pid)}" type="button">参加確定</button>`
+      : `<span class="meta">pidなし（古い予約）</span>`;
+
+    const delBtn = p.pid
+      ? `<button class="btn danger" data-del="${escapeHtml(p.pid)}" type="button">削除</button>`
+      : ``;
+
+    return `
+      <div class="rCard">
+        <div>
+          <div class="rTitle">${escapeHtml(p.name||"-")}</div>
+          <div class="rMeta">${escapeHtml(meta)}</div>
+        </div>
+        <div class="rActions">
+          ${confirmBtn}
+          ${delBtn}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+/* ===== 操作 ===== */
+function clearForm(){
+  $("pName").value="";
+  $("pGender").value="";
+  $("pAge").value="";
+  $("pContact").value="";
+  $("pContactWay").value="";
+  $("pMemo").value="";
+  showAutoBadge(false);
+}
+$("btnClear").onclick = ()=>{ setError(""); clearForm(); };
+
+$("btnSave").onclick = async ()=>{
+  setError("");
+  try{
+    const eventId = $("eventSel").value;
+    if(!eventId){ alert("イベントを選択してください"); return; }
+
+    const name = $("pName").value.trim();
+    if(!name){ alert("名前は必須です"); return; }
+
+    const gender = $("pGender").value;
+    if(!gender){ alert("性別（男性/女性）を選択してください"); return; }
+
+    setStatus("予約登録中…");
+
+    const p = {
+      eventId,
+      pid: makePid(),
+      name,
+      gender,
+      age: $("pAge").value.trim(),
+      contact: displayPhone($("pContact").value.trim()),
+      contactWay: normalizeContactWay($("pContactWay").value),
+      memo: $("pMemo").value.trim(),
+      status: "reserved",
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+
+    await apiParticipantsUpsert(p);
+    await reloadParticipants(eventId);
+
+    setStatus("予約として登録しました");
+    clearForm();
+    renderConfirmed();
+    renderReservations();
+
+  }catch(err){
+    setStatus("-");
+    setError("登録に失敗： " + (err.message || err));
+  }
+};
+
+$("q").oninput = renderConfirmed;
+
+$("eventSel").addEventListener("change", async ()=>{
+  setError("");
+  try{
+    const eventId = $("eventSel").value;
+    if(!eventId){
+      participantsRaw = [];
+      participants = [];
+      renderConfirmed();
+      $("cntR").textContent = "0";
+      return;
+    }
+    await reloadParticipants(eventId);
+    renderConfirmed();
+  }catch(err){
+    setEvStatus("-");
+    setError("参加者の読み込みに失敗： " + (err.message || err));
+  }
+});
+
+$("pName").addEventListener("input", scheduleAutoFill);
+$("pContact").addEventListener("input", scheduleAutoFill);
+
+/* ★追記：連絡方法を変更したらオートバッジ表示状態を維持したい場合のため（軽い再判定） */
+$("pContactWay").addEventListener("change", ()=>{ showAutoBadge($("autoBadge").style.display !== "none"); });
+
+/* ===== 読み込み ===== */
+async function reloadParticipants(eventId){
+  setEvStatus("参加者読込中…");
+  participantsRaw = await apiParticipantsList(eventId);
+  participants = normalizeParticipants(participantsRaw);
+  $("cntR").textContent = String(countReserved());
+  setEvStatus("OK");
+}
+
+/* ===== 起動 ===== */
+(async()=>{
+  try{
+    initNewFold();
+
+    setEvStatus("読込中…");
+    setStatus("読込中…");
+    setError("");
+
+    customers = await apiCustomers();
+    events = await apiEvents();
+    buildEventSelect();
+
+    const firstId = $("eventSel").value;
+    if(firstId){
+      await reloadParticipants(firstId);
+    }else{
+      participantsRaw = [];
+      participants = [];
+      $("cntR").textContent = "0";
+    }
+
+    $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
+    setEvStatus("OK");
+    setStatus("OK");
+    renderConfirmed();
+    renderReservations();
+
+  }catch(err){
+    setEvStatus("-");
+    setStatus("-");
+    setError("初期化に失敗： " + (err.message || err));
+  }
+})();
+</script>
+
+</body>
+</html>

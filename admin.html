@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>イベント管理</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px; --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 14px 40px}
+
+header{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:12px;flex-wrap:wrap;padding-bottom:12px
+}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted)}
+
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 12px;border-radius:999px;cursor:pointer;
+  font-size:12px; text-decoration:none; color:inherit;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn.primary{
+  background:linear-gradient(135deg,var(--pri),var(--pri2));
+  color:#fff;border:none;
+}
+.btn.danger{border-color:#fca5a5;color:#b91c1c}
+
+.input{
+  border:1px solid var(--line);
+  padding:10px 12px;border-radius:999px;
+  width:100%;
+  font-size:13px;
+  background:#fff;
+}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:#b91c1c}
+.list{display:flex;flex-direction:column;gap:10px}
+
+.item{
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px 14px;
+  display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+}
+.item .title{font-weight:800}
+.item .subline{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* モーダル */
+.modalBack{
+  position:fixed;inset:0;background:rgba(15,23,42,.35);
+  display:none;align-items:center;justify-content:center;
+  padding:18px; z-index:50;
+}
+.modal{
+  width:min(860px,100%);
+  background:#fff;border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);
+}
+.modalHd{
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+}
+.modalHd strong{font-size:14px}
+.modalBd{padding:12px 14px}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+}
+@media(max-width:900px){ .grid{grid-template-columns:1fr 1fr} }
+@media(max-width:520px){ .grid{grid-template-columns:1fr} }
+.fieldLabel{font-size:12px;color:var(--muted);margin:6px 0 6px}
+.field{
+  border:1px solid var(--line);
+  padding:10px 12px;border-radius:12px;width:100%;
+  font-size:13px;
+}
+textarea.field{border-radius:12px;min-height:78px;resize:vertical}
+hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <h1>イベント管理</h1>
+      <div class="sub">共有DB（スプレッドシート）に保存されます</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <a class="btn" id="linkPast" href="./past.html">過去イベント</a>
+    <a class="btn" id="linkParticipants" href="./participants/participants.html">参加者管理</a>
+    <a class="btn" id="linkCustomers" href="./customers/customers.html">顧客マスタ</a>
+
+    <button class="btn" id="btnReload" type="button">更新</button>
+    <button class="btn primary" id="btnNew" type="button">新規登録</button>
+  </div>
+</header>
+
+<section class="card">
+  <div class="hd">
+    <strong>登録済みイベント</strong>
+    <span class="meta" id="count">-</span>
+    <span class="meta" id="loadedAt">-</span>
+  </div>
+  <div class="bd">
+    <input class="input" id="q" placeholder="検索（店名/Discord/恋活…）">
+  </div>
+</section>
+
+<section class="card" style="margin-top:14px">
+  <div class="bd">
+    <div class="list" id="list"></div>
+    <div class="err" id="err" style="margin-top:10px"></div>
+  </div>
+</section>
+
+<!-- ===== モーダル（新規/編集） ===== -->
+<div class="modalBack" id="modalBack" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modalHd">
+      <strong id="modalTitle">新規登録</strong>
+      <button class="btn" id="btnClose" type="button">閉じる</button>
+    </div>
+    <div class="modalBd">
+      <input type="hidden" id="eid">
+
+      <div class="grid">
+
+        <div>
+          <div class="fieldLabel">タイトル（必須）</div>
+          <input class="field" id="title" placeholder="例）恋活">
+        </div>
+        <div>
+          <div class="fieldLabel">日付（必須）</div>
+          <input class="field" id="date" type="date">
+        </div>
+        <div>
+          <div class="fieldLabel">場所</div>
+          <input class="field" id="place" placeholder="例）Yellow Flag">
+        </div>
+
+        <div>
+          <div class="fieldLabel">開始</div>
+          <input class="field" id="timeFrom" type="text" inputmode="numeric" placeholder="例）1330" autocomplete="off">
+        </div>
+        <div>
+          <div class="fieldLabel">終了</div>
+          <input class="field" id="timeTo" type="text" inputmode="numeric" placeholder="例）1430" autocomplete="off">
+        </div>
+        <div>
+          <div class="fieldLabel">種別/タグ</div>
+          <input class="field" id="note" placeholder="例）Discord / 恋活">
+        </div>
+
+        <div>
+          <div class="fieldLabel">料金（男性）</div>
+          <input class="field" id="priceM" inputmode="numeric" placeholder="例）1000">
+        </div>
+        <div>
+          <div class="fieldLabel">料金（女性）</div>
+          <input class="field" id="priceF" inputmode="numeric" placeholder="例）500">
+        </div>
+        <div>
+          <div class="fieldLabel">メモ</div>
+          <input class="field" id="memo" placeholder="任意">
+        </div>
+
+        <!-- ✅追加：〆切（deadline） -->
+        <div>
+          <div class="fieldLabel">〆切（任意）</div>
+          <input class="field" id="deadline" type="date">
+        </div>
+
+        <!-- ✅ 追加：対象 -->
+        <div>
+          <div class="fieldLabel">対象（例：独身限定 / 30-45歳 など）</div>
+          <input class="field" id="target" placeholder="例）独身限定 / 30〜45歳 / 初参加歓迎">
+        </div>
+
+        <!-- ✅ 追加：支払方法 -->
+        <div>
+          <div class="fieldLabel">支払方法</div>
+          <input class="field" id="payMethod" placeholder="例）PayPay / 現金 / 事前決済 / 当日払い">
+        </div>
+
+        <!-- ✅ 追加：キャンセルについて -->
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">キャンセルについて</div>
+          <textarea class="field" id="cancelPolicy" placeholder="例）前日まで無料／当日100%／連絡なし100% など"></textarea>
+        </div>
+      </div>
+
+      <hr class="sep">
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn primary" id="btnSave" type="button">保存</button>
+        <button class="btn danger" id="btnDelete" type="button" style="display:none">削除</button>
+        <span class="meta" id="status">-</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ★あなたの /exec に固定 */
+const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+
+const $ = (id)=>document.getElementById(id);
+
+let events = [];
+
+function setError(msg){ $("err").textContent = msg || ""; }
+function setStatus(msg){ $("status").textContent = msg || "-"; }
+
+async function fetchJson(url, opt){
+  const res = await fetch(url, Object.assign({cache:"no-store"}, opt||{}));
+  const j = await res.json().catch(()=> ({}));
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+
+/* ===== API ===== */
+async function apiList(){
+  const j = await fetchJson(API_URL + "?action=list");
+  return j.events || [];
+}
+async function apiUpsert(ev){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"upsert", event: ev })
+  });
+}
+async function apiDelete(id){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"delete", id })
+  });
+}
+
+/* ===== 遷移（クリックでも確実に飛ばす） ===== */
+function forceNavigate(href){
+  try{ window.location.assign(href); }
+  catch(_){ window.location.href = href; }
+}
+function bindNav(id, href){
+  const el = $(id);
+  if(!el) return;
+  el.addEventListener("click",(e)=>{ e.preventDefault(); forceNavigate(href); });
+  el.addEventListener("auxclick",()=>forceNavigate(href));
+}
+bindNav("linkPast","./past.html");
+bindNav("linkParticipants","./participants/participants.html");
+bindNav("linkCustomers","./customers/customers.html");
+
+/* ===== 時刻入力：4桁→HH:mm に自動整形＋自動フォーカス移動 ===== */
+function digitsOnly(s){ return String(s||"").replace(/[^\d]/g,""); }
+
+function toHHMMFromDigits(d){
+  const x = digitsOnly(d).slice(0,4);
+  if(x.length <= 2) return x;
+  return x.slice(0,2) + ":" + x.slice(2,4);
+}
+
+function setValueKeepCaret(el, newVal){
+  const start = el.selectionStart ?? newVal.length;
+  const before = el.value;
+  el.value = newVal;
+  const delta = newVal.length - before.length;
+  const pos = Math.max(0, Math.min(newVal.length, start + delta));
+  try{ el.setSelectionRange(pos, pos); }catch(_){}
+}
+
+function bindTimeSmart(fromId, toId){
+  const from = document.getElementById(fromId);
+  const to = document.getElementById(toId);
+
+  function onInput(el, nextEl){
+    const raw = el.value;
+    const formatted = toHHMMFromDigits(raw);
+    if(formatted !== raw){
+      setValueKeepCaret(el, formatted);
+    }
+    const dig = digitsOnly(el.value);
+    if(dig.length >= 4 && nextEl){
+      nextEl.focus();
+    }
+  }
+
+  from.addEventListener("input", ()=>onInput(from,to));
+  to.addEventListener("input", ()=>onInput(to,null));
+
+  function onBlur(el){
+    const dig = digitsOnly(el.value);
+    if(dig.length === 4){
+      el.value = dig.slice(0,2) + ":" + dig.slice(2,4);
+    }else if(dig.length === 0){
+      el.value = "";
+    }
+  }
+  from.addEventListener("blur", ()=>onBlur(from));
+  to.addEventListener("blur", ()=>onBlur(to));
+}
+
+bindTimeSmart("timeFrom","timeTo");
+
+function normalizeTimeField(id){
+  const el = document.getElementById(id);
+  const dig = digitsOnly(el.value);
+  if(dig.length === 4) return dig.slice(0,2)+":"+dig.slice(2,4);
+  const s = String(el.value||"").trim();
+  if(/^\d{1,2}:\d{2}$/.test(s)){
+    const [h,m]=s.split(":");
+    return String(Number(h)).padStart(2,"0")+":"+m;
+  }
+  return s;
+}
+
+/* ===== UI ===== */
+function openModal(mode, ev){
+  $("modalBack").style.display="flex";
+  $("modalBack").setAttribute("aria-hidden","false");
+  setStatus("-"); setError("");
+
+  if(mode==="new"){
+    $("modalTitle").textContent="新規登録";
+    $("eid").value="";
+    $("title").value="";
+    $("date").value="";
+    $("timeFrom").value="";
+    $("timeTo").value="";
+    $("place").value="";
+    $("priceM").value="";
+    $("priceF").value="";
+    $("note").value="";
+    $("memo").value="";
+
+    // ✅追加：初期化
+    $("deadline").value="";
+    $("target").value="";
+    $("payMethod").value="";
+    $("cancelPolicy").value="";
+
+    $("btnDelete").style.display="none";
+  }else{
+    $("modalTitle").textContent="編集";
+    $("eid").value=ev.id||"";
+    $("title").value=ev.title||"";
+    $("date").value=toDateValue(ev.date);
+
+    const t = String(ev.time||"");
+    const m = t.match(/(\d{1,2}:\d{2})\s*[〜\-–]\s*(\d{1,2}:\d{2})/);
+
+    $("timeFrom").value = (ev.timeFrom || (m ? m[1] : "")) || "";
+    $("timeTo").value   = (ev.timeTo   || (m ? m[2] : "")) || "";
+    $("place").value=ev.place||"";
+    $("priceM").value=ev.priceM||"";
+    $("priceF").value=ev.priceF||"";
+    $("note").value=ev.note||"";
+    $("memo").value=ev.memo||"";
+
+    // ✅追加：〆切
+    $("deadline").value = toDateValue(ev.deadline);
+
+    // ✅追加：反映
+    $("target").value = ev.target || "";
+    $("payMethod").value = ev.payMethod || ev.pay || "";
+    $("cancelPolicy").value = ev.cancelPolicy || "";
+
+    $("btnDelete").style.display="inline-flex";
+  }
+}
+function closeModal(){
+  $("modalBack").style.display="none";
+  $("modalBack").setAttribute("aria-hidden","true");
+}
+$("btnClose").onclick = closeModal;
+$("modalBack").addEventListener("click",(e)=>{
+  if(e.target === $("modalBack")) closeModal();
+});
+
+$("btnNew").onclick = ()=> openModal("new");
+$("btnReload").onclick = ()=> location.reload();
+
+function toDateValue(v){
+  if(!v) return "";
+  try{
+    const d = (v instanceof Date) ? v : new Date(v);
+    if(Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const dd = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${dd}`;
+  }catch(e){ return ""; }
+}
+function fmtDateJa(v){
+  if(!v) return "-";
+  const d = (v instanceof Date) ? v : new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  const y=d.getFullYear(), m=d.getMonth()+1, dd=d.getDate();
+  return `${y}年${m}月${dd}日`;
+}
+function fmtMoney(v){ return (v===0 || v==="0" || v) ? String(v) : "-"; }
+
+function render(){
+  const q = $("q").value.trim();
+  const list = q
+    ? events.filter(e=>{
+        const s = `${e.title||""} ${e.place||""} ${e.note||""} ${e.target||""} ${e.payMethod||e.pay||""} ${e.deadline||""}`.toLowerCase();
+        return s.includes(q.toLowerCase());
+      })
+    : events;
+
+  $("count").textContent = `表示 ${list.length}件 / 全${events.length}件`;
+
+  if(!list.length){
+    $("list").innerHTML = `<div class="meta">イベントがありません</div>`;
+    return;
+  }
+
+  $("list").innerHTML = list.map(e=>{
+    const payTxt = e.payMethod || e.pay || "";
+    const targetTxt = e.target || "";
+    const cancelTxt = e.cancelPolicy || "";
+    const deadlineTxt = e.deadline ? fmtDateJa(e.deadline) : "";
+
+    return `
+    <div class="item">
+      <div style="min-width:260px">
+        <div class="title">${escapeHtml(fmtDateJa(e.date))}｜${escapeHtml(e.title||"-")}</div>
+        <div class="subline">
+          ${escapeHtml(e.timeFrom||"-")}-${escapeHtml(e.timeTo||"-")}
+          ・ 料金(男性) ${escapeHtml(fmtMoney(e.priceM))}
+          ・ 料金(女性) ${escapeHtml(fmtMoney(e.priceF))}
+          ${e.note ? " ・ " + escapeHtml(e.note) : ""}
+          ${deadlineTxt ? "<br>〆切：" + escapeHtml(deadlineTxt) : ""}
+          ${targetTxt ? "<br>対象：" + escapeHtml(targetTxt) : ""}
+          ${payTxt ? " ／ 支払：" + escapeHtml(payTxt) : ""}
+          ${cancelTxt ? "<br>キャンセル：" + escapeHtml(cancelTxt) : ""}
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" data-edit="${escapeHtml(e.id)}" type="button">編集</button>
+        <button class="btn" data-copy="${escapeHtml(e.id)}" type="button">コピー</button>
+      </div>
+    </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("[data-edit]").forEach(b=>{
+    b.onclick = ()=>{
+      const ev = events.find(x=>String(x.id)===String(b.dataset.edit));
+      if(ev) openModal("edit", ev);
+    };
+  });
+
+  document.querySelectorAll("[data-copy]").forEach(b=>{
+    b.onclick = ()=>{
+      const ev = events.find(x=>String(x.id)===String(b.dataset.copy));
+      if(!ev) return;
+      openModal("new");
+      $("title").value = ev.title||"";
+      $("date").value = toDateValue(ev.date);
+      $("timeFrom").value = ev.timeFrom||"";
+      $("timeTo").value = ev.timeTo||"";
+      $("place").value = ev.place||"";
+      $("priceM").value = ev.priceM||"";
+      $("priceF").value = ev.priceF||"";
+      $("note").value = ev.note||"";
+      $("memo").value = ev.memo||"";
+
+      // ✅〆切もコピー
+      $("deadline").value = toDateValue(ev.deadline);
+
+      // ✅追加：コピーにも反映
+      $("target").value = ev.target || "";
+      $("payMethod").value = ev.payMethod || ev.pay || "";
+      $("cancelPolicy").value = ev.cancelPolicy || "";
+    };
+  });
+}
+
+$("q").oninput = render;
+
+/* ===== 保存/削除（保存後に必ず list 再取得） ===== */
+async function refreshList(){
+  events = await apiList();
+  $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
+  render();
+}
+
+$("btnSave").onclick = async ()=>{
+  setError("");
+  try{
+    const title = $("title").value.trim();
+    const date  = $("date").value;
+    if(!title){ alert("タイトルは必須です"); return; }
+    if(!date){ alert("日付は必須です"); return; }
+
+    setStatus("保存中…");
+
+    const tFrom = normalizeTimeField("timeFrom");
+    const tTo   = normalizeTimeField("timeTo");
+
+    // GAS 側が time 列優先の場合に備えて送る
+    const timeSingle = (tFrom && tTo) ? `${tFrom}〜${tTo}` : (tFrom || "");
+
+    const ev = {
+      id: $("eid").value.trim(),
+      title,
+      date,
+      timeFrom: tFrom,
+      timeTo: tTo,
+      time: timeSingle,
+
+      place: $("place").value.trim(),
+      priceM: $("priceM").value.trim(),
+      priceF: $("priceF").value.trim(),
+      note: $("note").value.trim(),
+      memo: $("memo").value.trim(),
+
+      // ✅〆切
+      deadline: $("deadline").value || "",
+
+      // ✅追加：3項目
+      target: $("target").value.trim(),
+      payMethod: $("payMethod").value.trim(),
+      cancelPolicy: $("cancelPolicy").value.trim()
+    };
+
+    await apiUpsert(ev);
+    await refreshList();
+
+    setStatus("保存しました");
+    closeModal();
+  }catch(err){
+    setStatus("-");
+    setError("保存に失敗： " + (err.message || err));
+  }
+};
+
+$("btnDelete").onclick = async ()=>{
+  setError("");
+  const id = $("eid").value.trim();
+  if(!id) return;
+  if(!confirm("削除しますか？")) return;
+
+  try{
+    setStatus("削除中…");
+    await apiDelete(id);
+    await refreshList();
+
+    setStatus("削除しました");
+    closeModal();
+  }catch(err){
+    setStatus("-");
+    setError("削除に失敗： " + (err.message || err));
+  }
+};
+
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+/* ===== 起動 ===== */
+(async()=>{
+  try{
+    setError("");
+    await refreshList();
+  }catch(err){
+    setError("読み込みに失敗： " + (err.message || err));
+  }
+})();
+</script>
+
+</body>
+</html>

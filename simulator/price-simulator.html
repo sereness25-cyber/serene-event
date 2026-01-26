@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>イベント料金シミュレーター</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px;
+  --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+  color:var(--text);
+}
+.wrap{max-width:1000px;margin:0 auto;padding:18px}
+h1{font-size:20px;margin-bottom:12px}
+
+.card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  margin-bottom:16px;
+}
+.hd{
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  font-weight:700;display:flex;gap:10px;align-items:center;flex-wrap:wrap
+}
+.bd{padding:14px}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+@media(max-width:900px){ .grid{grid-template-columns:1fr 1fr} }
+@media(max-width:520px){ .grid{grid-template-columns:1fr} }
+
+.label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.field{
+  width:100%;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  font-size:14px;
+}
+.small{font-size:11px;color:var(--muted);margin-top:4px}
+
+.result{
+  font-size:18px;
+  font-weight:800;
+}
+.muted{color:var(--muted)}
+.err{color:#b91c1c;font-size:12px}
+.rowBtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+button{
+  padding:10px 16px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:#fff;
+  cursor:pointer;
+}
+button.primary{
+  background:linear-gradient(135deg,var(--pri),var(--pri2));
+  color:#fff;
+  border:none;
+}
+button.danger{
+  border-color:#fecaca;
+  color:#b91c1c;
+}
+.list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.item{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.item .title{font-weight:800}
+.item .subline{font-size:12px;color:var(--muted);margin-top:4px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.badge{
+  display:inline-flex;align-items:center;
+  padding:2px 8px;border-radius:999px;
+  background:#eef2ff;border:1px solid #e5e7eb;
+  font-size:11px;color:#374151;
+}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+<h1>イベント料金シミュレーター</h1>
+
+<!-- ✅ 保存/読込 -->
+<div class="card">
+  <div class="hd">
+    <span>保存 / 読み込み（スプレッドシート）</span>
+    <span class="badge" id="saveStatus">未保存</span>
+    <span style="flex:1"></span>
+    <button class="primary" id="btnRecalc" type="button">再計算</button>
+  </div>
+  <div class="bd">
+    <div class="grid">
+      <div>
+        <div class="label">シミュレーション名（必須）</div>
+        <input class="field" id="simName" placeholder="例）2/11 カラオケ恋活（10×10）">
+        <div class="small">同じ名前がある場合は「上書き保存」になります</div>
+      </div>
+      <div>
+        <div class="label">操作</div>
+        <div class="rowBtns">
+          <button class="primary" id="btnSave" type="button">保存</button>
+          <button id="btnNew" type="button">新規（入力クリア）</button>
+        </div>
+        <div class="small">保存先：スプレッドシート（GAS）</div>
+      </div>
+      <div>
+        <div class="label">エクスポート / インポート（任意）</div>
+        <div class="rowBtns">
+          <button id="btnExport" type="button">JSON出力</button>
+          <button id="btnImport" type="button">JSON読込</button>
+        </div>
+        <div class="small">端末間移行に使えます</div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 参加条件 -->
+<div class="card">
+  <div class="hd">参加条件</div>
+  <div class="bd grid">
+    <div>
+      <div class="label">男性人数</div>
+      <input class="field" id="men" inputmode="numeric" value="10">
+    </div>
+    <div>
+      <div class="label">女性人数</div>
+      <input class="field" id="women" inputmode="numeric" value="10">
+    </div>
+    <div>
+      <div class="label">キャンセル人数</div>
+      <input class="field" id="cancel" inputmode="numeric" value="0">
+    </div>
+
+    <div>
+      <div class="label">男性料金（円）</div>
+      <input class="field" id="priceM" inputmode="numeric" value="3000">
+    </div>
+    <div>
+      <div class="label">女性料金（円）</div>
+      <input class="field" id="priceF" inputmode="numeric" value="1000">
+    </div>
+    <div>
+      <div class="label">割引合計（円）</div>
+      <input class="field" id="discount" inputmode="numeric" value="0">
+    </div>
+  </div>
+</div>
+
+<!-- 経費 -->
+<div class="card">
+  <div class="hd">経費</div>
+  <div class="bd grid">
+    <div>
+      <div class="label">会場費</div>
+      <input class="field" id="costVenue" inputmode="numeric" value="10000">
+    </div>
+    <div>
+      <div class="label">飲食費</div>
+      <input class="field" id="costFood" inputmode="numeric" value="5000">
+    </div>
+    <div>
+      <div class="label">広告費</div>
+      <input class="field" id="costAds" inputmode="numeric" value="3000">
+    </div>
+
+    <!-- 人数×単価（男性） -->
+    <div>
+      <div class="label">男性：1人あたり経費</div>
+      <input class="field" id="costPerM" inputmode="numeric" value="200">
+    </div>
+    <div>
+      <div class="label">男性人数（自動）</div>
+      <input class="field" id="costPeopleM" disabled>
+    </div>
+    <div>
+      <div class="label">男性経費小計（自動）</div>
+      <input class="field" id="costSubM" disabled>
+    </div>
+
+    <!-- 人数×単価（女性） -->
+    <div>
+      <div class="label">女性：1人あたり経費</div>
+      <input class="field" id="costPerF" inputmode="numeric" value="200">
+    </div>
+    <div>
+      <div class="label">女性人数（自動）</div>
+      <input class="field" id="costPeopleF" disabled>
+    </div>
+    <div>
+      <div class="label">女性経費小計（自動）</div>
+      <input class="field" id="costSubF" disabled>
+    </div>
+
+    <div>
+      <div class="label">その他経費</div>
+      <input class="field" id="costOther" inputmode="numeric" value="0">
+    </div>
+  </div>
+</div>
+
+<!-- 結果 -->
+<div class="card">
+  <div class="hd">結果</div>
+  <div class="bd grid">
+    <div>
+      <div class="label">売上</div>
+      <div class="result" id="sales">-</div>
+    </div>
+    <div>
+      <div class="label">経費合計</div>
+      <div class="result" id="totalCost">-</div>
+    </div>
+    <div>
+      <div class="label">利益</div>
+      <div class="result" id="profit">-</div>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ 保存一覧 -->
+<div class="card">
+  <div class="hd">
+    <span>保存一覧</span>
+    <span class="muted" id="count">-</span>
+    <span style="flex:1"></span>
+    <button id="btnReloadList" type="button">一覧更新</button>
+  </div>
+  <div class="bd">
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+</div>
+
+<!-- ✅ 編集ポップアップ（モーダル） -->
+<div id="modalBack" style="position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;align-items:center;justify-content:center;padding:18px;z-index:50">
+  <div style="width:min(920px,100%);background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)">
+    <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <strong style="font-size:14px">保存データを編集</strong>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="btnModalClose" type="button">閉じる</button>
+      </div>
+    </div>
+
+    <div style="padding:14px">
+      <input type="hidden" id="editSid">
+
+      <div class="grid">
+        <div>
+          <div class="label">シミュレーション名（必須）</div>
+          <input class="field" id="editName" placeholder="例）2/11 カラオケ恋活（10×10）">
+          <div class="small">ここを変えると「別名保存」になります（元の名前を残したい場合）</div>
+        </div>
+        <div>
+          <div class="label">操作</div>
+          <div class="rowBtns">
+            <button class="primary" id="btnModalSave" type="button">再保存（上書き）</button>
+            <button id="btnModalApplyMain" type="button">メインに反映</button>
+          </div>
+          <div class="small">再保存はスプレッドシートへ反映します</div>
+        </div>
+        <div>
+          <div class="label">状態</div>
+          <div class="small"><span class="badge" id="modalStatus">-</span></div>
+          <div class="err" id="modalErr" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <hr class="sep">
+
+      <!-- 編集用の入力欄（メインと同じ項目） -->
+      <div class="grid">
+        <div><div class="label">男性人数</div><input class="field" id="editMen" inputmode="numeric"></div>
+        <div><div class="label">女性人数</div><input class="field" id="editWomen" inputmode="numeric"></div>
+        <div><div class="label">キャンセル人数</div><input class="field" id="editCancel" inputmode="numeric"></div>
+
+        <div><div class="label">男性料金（円）</div><input class="field" id="editPriceM" inputmode="numeric"></div>
+        <div><div class="label">女性料金（円）</div><input class="field" id="editPriceF" inputmode="numeric"></div>
+        <div><div class="label">割引合計（円）</div><input class="field" id="editDiscount" inputmode="numeric"></div>
+
+        <div><div class="label">会場費</div><input class="field" id="editCostVenue" inputmode="numeric"></div>
+        <div><div class="label">飲食費</div><input class="field" id="editCostFood" inputmode="numeric"></div>
+        <div><div class="label">広告費</div><input class="field" id="editCostAds" inputmode="numeric"></div>
+
+        <div><div class="label">男性：1人あたり経費</div><input class="field" id="editCostPerM" inputmode="numeric"></div>
+        <div><div class="label">女性：1人あたり経費</div><input class="field" id="editCostPerF" inputmode="numeric"></div>
+        <div><div class="label">その他経費</div><input class="field" id="editCostOther" inputmode="numeric"></div>
+      </div>
+
+      <hr class="sep">
+
+      <div class="grid">
+        <div>
+          <div class="label">売上</div>
+          <div class="result" id="editSales">-</div>
+        </div>
+        <div>
+          <div class="label">経費合計</div>
+          <div class="result" id="editTotalCost">-</div>
+        </div>
+        <div>
+          <div class="label">利益</div>
+          <div class="result" id="editProfit">-</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ★あなたの /exec に固定 */
+const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+
+const $ = id => document.getElementById(id);
+const n = v => Math.max(0, Number(v)||0);
+
+let sims = [];
+
+function setErr(msg){ $("err").textContent = msg || ""; }
+function setBadge(msg){ $("saveStatus").textContent = msg || "未保存"; }
+
+async function fetchJson(url, opt){
+  const res = await fetch(url, Object.assign({cache:"no-store"}, opt||{}));
+  const j = await res.json().catch(()=> ({}));
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+
+/* ===== GAS API ===== */
+async function apiSimsList(){
+  const j = await fetchJson(API_URL + "?action=sims:list&nocache=1");
+  return j.sims || [];
+}
+async function apiSimsUpsert(sim){
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"sims:upsert", sim })
+  });
+  return j.sims || [];
+}
+async function apiSimsDelete(sid){
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"sims:delete", sid })
+  });
+  return j.sims || [];
+}
+
+/* ===== 入力スナップ ===== */
+function snapshot(){
+  return {
+    name: $("simName").value.trim(),
+    payload: {
+      name: $("simName").value.trim(),
+      men: $("men").value,
+      women: $("women").value,
+      cancel: $("cancel").value,
+      priceM: $("priceM").value,
+      priceF: $("priceF").value,
+      discount: $("discount").value,
+      costVenue: $("costVenue").value,
+      costFood: $("costFood").value,
+      costAds: $("costAds").value,
+      costPerM: $("costPerM").value,
+      costPerF: $("costPerF").value,
+      costOther: $("costOther").value
+    }
+  };
+}
+
+function applyPayload(p){
+  $("simName").value = p.name || "";
+  $("men").value = p.men ?? "0";
+  $("women").value = p.women ?? "0";
+  $("cancel").value = p.cancel ?? "0";
+  $("priceM").value = p.priceM ?? "0";
+  $("priceF").value = p.priceF ?? "0";
+  $("discount").value = p.discount ?? "0";
+  $("costVenue").value = p.costVenue ?? "0";
+  $("costFood").value = p.costFood ?? "0";
+  $("costAds").value = p.costAds ?? "0";
+  $("costPerM").value = p.costPerM ?? "0";
+  $("costPerF").value = p.costPerF ?? "0";
+  $("costOther").value = p.costOther ?? "0";
+  calc();
+  setBadge("読み込み済み");
+}
+
+/* ===== 計算 ===== */
+function calc(){
+  const men = n($("men").value);
+  const women = n($("women").value);
+  const cancel = n($("cancel").value);
+
+  const m = Math.max(0, men - cancel);
+  const f = Math.max(0, women);
+
+  const sales =
+    m * n($("priceM").value) +
+    f * n($("priceF").value) -
+    n($("discount").value);
+
+  const subM = m * n($("costPerM").value);
+  const subF = f * n($("costPerF").value);
+
+  $("costPeopleM").value = m;
+  $("costPeopleF").value = f;
+  $("costSubM").value = subM;
+  $("costSubF").value = subF;
+
+  const cost =
+    n($("costVenue").value) +
+    n($("costFood").value) +
+    n($("costAds").value) +
+    n($("costOther").value) +
+    subM + subF;
+
+  const profit = sales - cost;
+
+  $("sales").textContent = sales.toLocaleString() + " 円";
+  $("totalCost").textContent = cost.toLocaleString() + " 円";
+  $("profit").textContent = profit.toLocaleString() + " 円";
+}
+
+function clearAll(){
+  $("simName").value="";
+  $("men").value="10";
+  $("women").value="10";
+  $("cancel").value="0";
+  $("priceM").value="3000";
+  $("priceF").value="1000";
+  $("discount").value="0";
+  $("costVenue").value="10000";
+  $("costFood").value="5000";
+  $("costAds").value="3000";
+  $("costPerM").value="200";
+  $("costPerF").value="200";
+  $("costOther").value="0";
+  calc();
+  setBadge("未保存");
+  setErr("");
+}
+
+/* ===== モーダル（編集ポップアップ） ===== */
+const modal = {
+  back: null,
+  status: null,
+  err: null
+};
+
+function m$(id){ return document.getElementById(id); }
+
+function openModal(){
+  modal.back.style.display = "flex";
+}
+function closeModal(){
+  modal.back.style.display = "none";
+  modal.status.textContent = "-";
+  modal.err.textContent = "";
+}
+
+function setModalStatus(msg){ modal.status.textContent = msg || "-"; }
+function setModalErr(msg){ modal.err.textContent = msg || ""; }
+
+function getEditPayload(){
+  return {
+    name: m$("editName").value.trim(),
+    men: m$("editMen").value,
+    women: m$("editWomen").value,
+    cancel: m$("editCancel").value,
+    priceM: m$("editPriceM").value,
+    priceF: m$("editPriceF").value,
+    discount: m$("editDiscount").value,
+    costVenue: m$("editCostVenue").value,
+    costFood: m$("editCostFood").value,
+    costAds: m$("editCostAds").value,
+    costPerM: m$("editCostPerM").value,
+    costPerF: m$("editCostPerF").value,
+    costOther: m$("editCostOther").value
+  };
+}
+
+function applyToModal(p, sid){
+  m$("editSid").value = sid || "";
+  m$("editName").value = p.name || "";
+
+  m$("editMen").value = p.men ?? "0";
+  m$("editWomen").value = p.women ?? "0";
+  m$("editCancel").value = p.cancel ?? "0";
+  m$("editPriceM").value = p.priceM ?? "0";
+  m$("editPriceF").value = p.priceF ?? "0";
+  m$("editDiscount").value = p.discount ?? "0";
+
+  m$("editCostVenue").value = p.costVenue ?? "0";
+  m$("editCostFood").value = p.costFood ?? "0";
+  m$("editCostAds").value = p.costAds ?? "0";
+  m$("editCostPerM").value = p.costPerM ?? "0";
+  m$("editCostPerF").value = p.costPerF ?? "0";
+  m$("editCostOther").value = p.costOther ?? "0";
+
+  calcModal();
+  setModalStatus("編集できます");
+}
+
+function calcModal(){
+  const men = n(m$("editMen").value);
+  const women = n(m$("editWomen").value);
+  const cancel = n(m$("editCancel").value);
+
+  const m = Math.max(0, men - cancel);
+  const f = Math.max(0, women);
+
+  const sales =
+    m * n(m$("editPriceM").value) +
+    f * n(m$("editPriceF").value) -
+    n(m$("editDiscount").value);
+
+  const subM = m * n(m$("editCostPerM").value);
+  const subF = f * n(m$("editCostPerF").value);
+
+  const cost =
+    n(m$("editCostVenue").value) +
+    n(m$("editCostFood").value) +
+    n(m$("editCostAds").value) +
+    n(m$("editCostOther").value) +
+    subM + subF;
+
+  const profit = sales - cost;
+
+  m$("editSales").textContent = sales.toLocaleString() + " 円";
+  m$("editTotalCost").textContent = cost.toLocaleString() + " 円";
+  m$("editProfit").textContent = profit.toLocaleString() + " 円";
+}
+
+/* ===== 一覧描画 ===== */
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+function renderSaved(){
+  const arr = (sims||[]).slice().sort((a,b)=>{
+    const A = String(a.updatedAt||a.createdAt||"");
+    const B = String(b.updatedAt||b.createdAt||"");
+    return B.localeCompare(A);
+  });
+
+  $("count").textContent = `${arr.length}件`;
+
+  if(!arr.length){
+    $("list").innerHTML = `<div class="muted">まだ保存がありません</div>`;
+    return;
+  }
+
+  $("list").innerHTML = arr.map((s,idx)=>{
+    const dt = s.updatedAt || s.createdAt;
+    const when = dt ? new Date(dt).toLocaleString("ja-JP") : "-";
+
+    // payloadはJSON文字列で来るので復元して軽く表示
+    let p = {};
+    try{ p = JSON.parse(s.payload||"{}"); }catch(_){}
+
+    return `
+      <div class="item">
+        <div>
+          <div class="title">${escapeHtml(s.name||"(無題)")}</div>
+          <div class="subline">
+            保存：${escapeHtml(when)}
+            ｜ 男${escapeHtml(String(p.men??"-"))} 女${escapeHtml(String(p.women??"-"))}
+            ｜ 男¥${escapeHtml(String(p.priceM??"-"))} 女¥${escapeHtml(String(p.priceF??"-"))}
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" data-load="${idx}">読み込み</button>
+          <button type="button" class="danger" data-del="${idx}">削除</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("[data-load]").forEach(btn=>{
+  btn.onclick = ()=>{
+    const i = Number(btn.dataset.load);
+    const s = arr[i];
+    if(!s) return;
+
+    try{
+      const p = JSON.parse(s.payload||"{}");
+      // sid と一緒にモーダルへ
+      applyToModal(p, s.sid);
+      openModal();
+    }catch(e){
+      setErr("読み込みに失敗：payloadが不正です");
+    }
+  };
+});
+
+  document.querySelectorAll("[data-del]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm("削除しますか？")) return;
+      const i = Number(btn.dataset.del);
+      const s = arr[i];
+      if(!s || !s.sid){
+        setErr("削除に失敗：sidがありません");
+        return;
+      }
+      try{
+        setErr("");
+        setBadge("削除中…");
+        sims = await apiSimsDelete(s.sid);
+        renderSaved();
+        setBadge("未保存");
+      }catch(e){
+        setErr("削除に失敗：" + (e.message||e));
+        setBadge("未保存");
+      }
+    };
+  });
+}
+
+/* ===== ボタン ===== */
+$("btnRecalc").onclick = calc;
+
+$("btnSave").onclick = async ()=>{
+  setErr("");
+  const name = $("simName").value.trim();
+  if(!name){
+    setErr("シミュレーション名は必須です。");
+    return;
+  }
+
+  try{
+    setBadge("保存中…");
+    const snap = snapshot();
+    // GAS側は payload を文字列でもOKだが、ここではオブジェクトで渡す（GASがJSON化）
+    sims = await apiSimsUpsert(snap);
+    renderSaved();
+    setBadge("保存しました");
+  }catch(e){
+    setErr("保存に失敗：" + (e.message||e));
+    setBadge("未保存");
+  }
+};
+
+$("btnNew").onclick = ()=>{
+  if(!confirm("入力をクリアして新規作成しますか？")) return;
+  clearAll();
+};
+
+$("btnReloadList").onclick = async ()=>{
+  try{
+    setErr("");
+    setBadge("一覧更新中…");
+    sims = await apiSimsList();
+    renderSaved();
+    setBadge("未保存");
+  }catch(e){
+    setErr("一覧取得に失敗：" + (e.message||e));
+    setBadge("未保存");
+  }
+};
+
+/* JSON出力/読込（任意） */
+$("btnExport").onclick = async ()=>{
+  setErr("");
+  const snap = snapshot();
+  const json = JSON.stringify(snap.payload, null, 2);
+  try{
+    await navigator.clipboard.writeText(json);
+    setBadge("JSONをコピーしました");
+  }catch(_){
+    prompt("このJSONをコピーしてください", json);
+    setBadge("JSONを表示しました");
+  }
+};
+
+$("btnImport").onclick = ()=>{
+  setErr("");
+  const raw = prompt("貼り付けてください（JSON）");
+  if(!raw) return;
+  try{
+    const p = JSON.parse(raw);
+    if(typeof p !== "object" || !p) throw new Error("JSON形式が不正です");
+    applyPayload(p);
+    setBadge("JSONを読み込みました");
+  }catch(e){
+    setErr("読み込みに失敗： " + (e.message || e));
+  }
+};
+
+/* 入力で自動再計算 & 未保存表示 */
+document.querySelectorAll("input").forEach(i=>{
+  i.addEventListener("input", ()=>{
+    calc();
+    setBadge("未保存");
+  });
+});
+
+/* 起動 */
+(async()=>{
+  // --- モーダル初期化 ---
+  modal.back = document.getElementById("modalBack");
+  modal.status = document.getElementById("modalStatus");
+  modal.err = document.getElementById("modalErr");
+
+  document.getElementById("btnModalClose").onclick = closeModal;
+  modal.back.addEventListener("click",(e)=>{ if(e.target === modal.back) closeModal(); });
+
+  // モーダル内の入力で再計算
+  [
+    "editMen","editWomen","editCancel","editPriceM","editPriceF","editDiscount",
+    "editCostVenue","editCostFood","editCostAds","editCostPerM","editCostPerF","editCostOther"
+  ].forEach(id=>{
+    document.getElementById(id).addEventListener("input", ()=>{
+      calcModal();
+      setModalStatus("未保存（モーダル）");
+    });
+  });
+
+  // モーダル→メインに反映
+  document.getElementById("btnModalApplyMain").onclick = ()=>{
+    const p = getEditPayload();
+    applyPayload(p);           // 既存のメイン反映関数
+    setBadge("未保存");
+    closeModal();
+    window.scrollTo({top:0,behavior:"smooth"});
+  };
+
+  // モーダルから再保存（上書き）
+  document.getElementById("btnModalSave").onclick = async ()=>{
+    setModalErr("");
+    const name = document.getElementById("editName").value.trim();
+    if(!name){
+      setModalErr("シミュレーション名は必須です。");
+      return;
+    }
+    try{
+      setModalStatus("保存中…");
+      const sid = document.getElementById("editSid").value.trim();
+
+      const sim = {
+        sid: sid || "",                // sidがあれば同じ行を更新（GAS側対応が必要）
+        name: name,
+        payload: getEditPayload()
+      };
+
+      sims = await apiSimsUpsert(sim);
+      renderSaved();
+      setModalStatus("保存しました");
+      setBadge("保存しました");
+      closeModal();
+    }catch(e){
+      setModalErr("保存に失敗：" + (e.message||e));
+      setModalStatus("未保存");
+    }
+  };
+
+  calc();
+  try{
+    sims = await apiSimsList();
+  }catch(_){
+    sims = [];
+  }
+  renderSaved();
+})();
+</script>
+</body>
+</html>
