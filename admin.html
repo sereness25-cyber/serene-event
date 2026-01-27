@@ -66,6 +66,49 @@ h1{font-size:18px;margin:0}
 .item .subline{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
 
+/* ✅ 折りたたみ（details/summary） */
+.evItem{
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+}
+.evSum{
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  padding:12px 14px;
+}
+.evSum::-webkit-details-marker{display:none;}
+.evHead{min-width:260px;flex:1}
+.evHead .title{font-weight:800}
+.evHead .subline{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.evChevron{
+  flex:0 0 auto;
+  font-size:12px;
+  color:var(--muted);
+  user-select:none;
+  transform-origin:center;
+  transition:transform .15s ease;
+  margin-top:2px;
+}
+details[open] .evChevron{transform:rotate(180deg);}
+.evBody{
+  padding:0 14px 12px;
+}
+.evBodyInner{
+  padding-top:10px;
+  border-top:1px dashed var(--line);
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.evBodyLeft{min-width:260px;flex:1}
+.evBodyActions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+
 /* モーダル */
 .modalBack{
   position:fixed;inset:0;background:rgba(15,23,42,.35);
@@ -337,6 +380,26 @@ function normalizeTimeField(id){
   return s;
 }
 
+/* ✅ 並び替え用（開催日が近い順） */
+function toDateSafe(dateStr, timeStr){
+  if(!dateStr) return null;
+  const s = String(dateStr).trim().replaceAll("/", "-");
+  const t = (timeStr && String(timeStr).includes(":")) ? String(timeStr).trim() : "00:00";
+  const d = new Date(`${s}T${t}:00`);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+function sortBySoonest(a, b){
+  const da = toDateSafe(a.date, (a.timeFrom||a.time||""));
+  const db = toDateSafe(b.date, (b.timeFrom||b.time||""));
+  if(!da && !db) return 0;
+  if(!da) return 1;
+  if(!db) return -1;
+  const diff = da - db;
+  if(diff !== 0) return diff;
+  return String(a.title||"").localeCompare(String(b.title||""));
+}
+
 /* ===== UI ===== */
 function openModal(mode, ev){
   $("modalBack").style.display="flex";
@@ -424,14 +487,30 @@ function fmtDateJa(v){
 }
 function fmtMoney(v){ return (v===0 || v==="0" || v) ? String(v) : "-"; }
 
+/* ✅ 直近イベントを自動で開くか（任意） */
+const AUTO_OPEN_SOON_EVENTS = true;
+const AUTO_OPEN_SOON_DAYS = 7; // 例：7日以内は開く
+
+function isSoonEvent(ev){
+  const d = toDateSafe(ev.date, ev.timeFrom || ev.time || "");
+  if(!d) return false;
+  const now = new Date();
+  const diffDays = (d - now) / (1000*60*60*24);
+  return diffDays >= -1 && diffDays <= AUTO_OPEN_SOON_DAYS;
+}
+
 function render(){
   const q = $("q").value.trim();
+
+  // ✅ 開催日が近い順に自動ソート（まず全体をソート）
+  const sorted = [...events].sort(sortBySoonest);
+
   const list = q
-    ? events.filter(e=>{
+    ? sorted.filter(e=>{
         const s = `${e.title||""} ${e.place||""} ${e.note||""} ${e.summary||e.memo||""} ${e.target||""} ${e.payMethod||e.pay||""} ${e.deadline||""} ${e.cancelPolicy||""}`.toLowerCase();
         return s.includes(q.toLowerCase());
       })
-    : events;
+    : sorted;
 
   $("count").textContent = `表示 ${list.length}件 / 全${events.length}件`;
 
@@ -447,29 +526,42 @@ function render(){
     const deadlineTxt = e.deadline ? fmtDateJa(e.deadline) : "";
     const summaryTxt = String(e.summary || e.memo || "").trim();
 
+    const openAttr = (AUTO_OPEN_SOON_EVENTS && isSoonEvent(e)) ? " open" : "";
+
     return `
-    <div class="item">
-      <div style="min-width:260px">
-        <div class="title">${escapeHtml(fmtDateJa(e.date))}｜${escapeHtml(e.title||"-")}</div>
-        <div class="subline">
-          ${escapeHtml(e.timeFrom||"-")}-${escapeHtml(e.timeTo||"-")}
-          ・ 料金(男性) ${escapeHtml(fmtMoney(e.priceM))}
-          ・ 料金(女性) ${escapeHtml(fmtMoney(e.priceF))}
-          ${e.note ? " ・ " + escapeHtml(e.note) : ""}
+    <details class="evItem"${openAttr}>
+      <summary class="evSum">
+        <div class="evHead">
+          <div class="title">${escapeHtml(fmtDateJa(e.date))}｜${escapeHtml(e.title||"-")}</div>
+          <div class="subline">
+            ${escapeHtml(e.timeFrom||"-")}-${escapeHtml(e.timeTo||"-")}
+            ・ 料金(男性) ${escapeHtml(fmtMoney(e.priceM))}
+            ・ 料金(女性) ${escapeHtml(fmtMoney(e.priceF))}
+            ${e.note ? " ・ " + escapeHtml(e.note) : ""}
+          </div>
+        </div>
+        <div class="evChevron">▼</div>
+      </summary>
 
-          ${summaryTxt ? "<br>概要：" + escapeHtml(summaryTxt) : ""}
+      <div class="evBody">
+        <div class="evBodyInner">
+          <div class="evBodyLeft">
+            <div class="subline">
+              ${summaryTxt ? "概要：" + escapeHtml(summaryTxt) : "概要：-"}
+              ${deadlineTxt ? "<br>〆切：" + escapeHtml(deadlineTxt) : ""}
+              ${targetTxt ? "<br>対象：" + escapeHtml(targetTxt) : ""}
+              ${payTxt ? "<br>支払：" + escapeHtml(payTxt) : ""}
+              ${cancelTxt ? "<br>キャンセル：" + escapeHtml(cancelTxt) : ""}
+            </div>
+          </div>
 
-          ${deadlineTxt ? "<br>〆切：" + escapeHtml(deadlineTxt) : ""}
-          ${targetTxt ? "<br>対象：" + escapeHtml(targetTxt) : ""}
-          ${payTxt ? " ／ 支払：" + escapeHtml(payTxt) : ""}
-          ${cancelTxt ? "<br>キャンセル：" + escapeHtml(cancelTxt) : ""}
+          <div class="evBodyActions">
+            <button class="btn" data-edit="${escapeHtml(e.id)}" type="button">編集</button>
+            <button class="btn" data-copy="${escapeHtml(e.id)}" type="button">コピー</button>
+          </div>
         </div>
       </div>
-      <div class="actions">
-        <button class="btn" data-edit="${escapeHtml(e.id)}" type="button">編集</button>
-        <button class="btn" data-copy="${escapeHtml(e.id)}" type="button">コピー</button>
-      </div>
-    </div>
+    </details>
     `;
   }).join("");
 
@@ -510,6 +602,10 @@ $("q").oninput = render;
 /* ===== 保存/削除（保存後に必ず list 再取得） ===== */
 async function refreshList(){
   events = await apiList();
+
+  // ✅ ここでも念のためソートして保持（検索無しでも常に近い順）
+  events.sort(sortBySoonest);
+
   $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
   render();
 }
