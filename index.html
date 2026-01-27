@@ -48,17 +48,24 @@ h1{font-size:18px;margin:0}
   margin-top:8px;
   display:grid;grid-template-columns:repeat(7,1fr);gap:10px;
 }
+
+/* ✅ カレンダー枠が崩れないように：dayをflex化し、子要素のはみ出しを抑制 */
 .day{
   border:1px solid var(--line);
   border-radius:14px;
   background:#fff;
   min-height:92px;
   padding:10px;
+
+  display:flex;
+  flex-direction:column;
+  overflow:hidden; /* 重要：中身で枠が崩れない */
 }
-.day .num{font-weight:700;font-size:14px}
+.day .num{font-weight:700;font-size:14px;flex:0 0 auto}
 .day.muted{opacity:.35}
 .day.today{outline:2px solid rgba(79,124,255,.25)}
 
+/* ✅ チップはタイトルのみ・省略表示・枠からはみ出さない */
 .chip{
   margin-top:6px;
   border:1px solid rgba(79,124,255,.25);
@@ -68,34 +75,78 @@ h1{font-size:18px;margin:0}
   padding:6px 8px;
   font-size:12px;
   cursor:pointer;
+
+  display:block;
+  max-width:100%;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
 }
+@media(max-width:520px){
+  .chip{font-size:11px; padding:6px 7px;}
+}
+
 .moreBtn{
   margin-top:4px;
   font-size:11px;
   color:var(--muted);
   cursor:pointer;
   padding-left:4px;
+  flex:0 0 auto;
 }
 
-/* modal */
+/* ===========================
+   ✅ modal（スマホで確実にスクロールできる最適化）
+   - 背景は固定
+   - モーダル全体は最大高を持ち
+   - 中身（modalBd）のみスクロール
+   - iOS対策：backdrop自体もoverflow:auto
+=========================== */
 .modalBack{
-  position:fixed;inset:0;
+  position:fixed; inset:0;
   background:rgba(15,23,42,.35);
-  display:none;align-items:center;justify-content:center;
+  display:none;
+  padding:12px;
+  z-index:50;
+
+  /* ✅ ここが重要：iOSで中央固定だとスクロールが死ぬことがあるので上寄せ＋backdropもスクロール可 */
+  align-items:flex-start;
+  justify-content:center;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
 }
+
 .modal{
   width:min(720px,100%);
+  /* ✅ dvh対応（iOSのアドレスバー変動に強い） */
+  max-height:calc(100dvh - 24px);
   background:#fff;border-radius:16px;
   box-shadow:0 18px 60px rgba(15,23,42,.25);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  margin:auto;
 }
+
 .modalHd{
   padding:12px 14px;border-bottom:1px solid var(--line);
   display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  flex:0 0 auto;
+  background:#fff;
 }
-.modalBd{padding:12px 14px}
+
+.modalBd{
+  padding:12px 14px;
+
+  /* ✅ 中身だけスクロール */
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+  flex:1 1 auto;
+  min-height:0;
+  overscroll-behavior:contain;
+}
+
+/* event detail */
 .evCard{
   border:1px solid var(--line);
   border-radius:14px;
@@ -106,11 +157,11 @@ h1{font-size:18px;margin:0}
 .evMeta{font-size:12px;color:var(--muted);margin-top:4px}
 .evRow{font-size:13px;margin-top:6px}
 
-/* ✅ 追加：詳細 2カラム（概要を右を広めに） */
+/* ✅ 詳細 2カラム（概要を右を広めに） */
 .evLayout{
   margin-top:10px;
   display:grid;
-  grid-template-columns: 1fr 1.45fr; /* 右を広め */
+  grid-template-columns: 1fr 1.45fr;
   gap:12px;
   align-items:start;
 }
@@ -142,7 +193,7 @@ h1{font-size:18px;margin:0}
 .summaryText{
   font-size:13px;
   line-height:1.55;
-  white-space:pre-wrap;      /* 改行を活かす */
+  white-space:pre-wrap;
   word-break:break-word;
 }
 
@@ -170,6 +221,10 @@ h1{font-size:18px;margin:0}
 }
 .formBtns .btnLike.secondary{box-shadow:none;background:#fff;border:1px solid var(--line);}
 .warnText{font-size:12px;color:#b45309;margin-top:6px}
+
+/* ✅ キャンセルフォーム */
+.cancelBox{margin-top:10px;}
+.cancelErr{font-size:12px;color:#b91c1c;margin-top:8px}
 
 /* 画像保存中 */
 .saving{opacity:.65;pointer-events:none;filter:grayscale(.15);}
@@ -289,18 +344,56 @@ let byDay={};
 let byId={};
 let lastListDay=null;
 
+/* ✅ iOS対策：モーダル表示中に背景スクロールを完全に止める（inner scrollは生かす） */
+let __lockY = 0;
+function lockBody(){
+  __lockY = window.scrollY || 0;
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${__lockY}px`;
+  document.body.style.left = "0";
+  document.body.style.right = "0";
+  document.body.style.width = "100%";
+}
+function unlockBody(){
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.width = "";
+  window.scrollTo(0, __lockY);
+}
+
 /* ===========================
    共通
 =========================== */
 function pad(n){return String(n).padStart(2,"0")}
 
-function openModal(){ $("modalBack").style.display="flex"; }
+function openModal(){
+  $("modalBack").style.display="flex";
+  lockBody();
+
+  // ✅ backdropを触っても中身スクロールが殺されないように（iOS）
+  // （背景タップでの「ゴム」挙動を抑える）
+  $("modalBack").addEventListener("touchmove", preventBackScroll, {passive:false});
+}
 function closeModal(){
   $("modalBack").style.display="none";
   $("btnBackList").style.display="none";
   lastListDay=null;
+  unlockBody();
+  $("modalBack").removeEventListener("touchmove", preventBackScroll);
 }
+function preventBackScroll(e){
+  // backdrop（灰色部分）をスワイプした時だけ抑制。modalBd内はOK。
+  if(e.target === $("modalBack")) e.preventDefault();
+}
+
 $("btnCloseModal").onclick = closeModal;
+
+// 背景クリックで閉じる
+$("modalBack").addEventListener("click",(e)=>{
+  if(e.target === $("modalBack")) closeModal();
+});
 
 function escapeHtml(s){
   return String(s??"")
@@ -339,6 +432,23 @@ function cleanDeadline(v){
   return s;
 }
 
+/* ✅ サーバー通信用（キャンセル/予約の紐付け） */
+async function postApi(body){
+  const r = await fetch(API_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify(body)
+  });
+  const j = await r.json().catch(()=>({ok:false,error:"JSON parse error"}));
+  return j;
+}
+async function apiCancel(payload){
+  return await postApi({ action:"reg:cancel", payload });
+}
+async function apiReserveUpsert(payload){
+  return await postApi({ action:"reg:upsert", payload });
+}
+
 function normalizeEvent(e){
   const title = e.title ?? e.name ?? "(無題)";
   const date  = e.date ?? e.eventDate ?? "";
@@ -353,14 +463,10 @@ function normalizeEvent(e){
   const pay    = e.pay ?? e.payment ?? payMethod ?? "";
   const age    = e.age ?? "";
   const note   = e.note ?? "";
-
-  // ✅ 追加：概要（新） ※旧memoとも互換
   const summary = e.summary ?? e.overview ?? e.memo ?? "";
-
   const target = e.target ?? "";
   const deadline = e.deadline ?? "";
   const id = (e.id!=null)? String(e.id) : "";
-
   return {id,title,date,time,timeFrom,timeTo,place,priceM,priceF,slots,pay,payMethod,age,note,summary,target,deadline};
 }
 
@@ -485,7 +591,6 @@ function openLineReserve(message){
     location.href = buildLineDeepLink(message);
     setTimeout(()=>{ location.href = LINE_ADD_URL; }, 900);
   }else{
-    // ✅PCはコピペ機能を無くす：友だち追加だけ開く
     window.open(LINE_ADD_URL, "_blank");
   }
 }
@@ -548,8 +653,12 @@ function renderEventDetail(e){
       </div>
 
       <div class="lineReserveBox">
-        <div class="reserveForm">
+
+        <div class="reserveForm" id="reserveFormBox">
           <p class="ttl">LINE予約（入力してから送信）</p>
+
+          <input type="hidden" id="eventId" value="${escapeHtml(n.id)}">
+
           <div class="fgrid">
             <div class="fi">
               <label>お名前</label>
@@ -585,13 +694,47 @@ function renderEventDetail(e){
           </div>
 
           <div class="warnText" id="rfWarn" style="display:none"></div>
+          <div class="err" id="rfSaveErr" style="margin-top:8px"></div>
         </div>
+
+        <div class="reserveForm cancelBox">
+          <p class="ttl">キャンセル（イベントと紐付け）</p>
+          <div class="smallNote">
+            ※予約時の電話番号で照合します。
+          </div>
+
+          <div class="fgrid" style="margin-top:8px">
+            <div class="fi">
+              <label>電話番号（予約時）</label>
+              <input id="cancelPhone" type="tel" inputmode="tel" placeholder="例：09012345678">
+            </div>
+            <div class="fi">
+              <label>理由（任意）</label>
+              <input id="cancelReason" type="text" placeholder="例：体調不良のため">
+            </div>
+          </div>
+
+          <div class="formBtns">
+            <button class="btnLike secondary" id="btnCancel" type="button" style="border-color:#fecaca;color:#b91c1c;font-weight:900">
+              キャンセル申請
+            </button>
+          </div>
+
+          <div class="cancelErr" id="cancelErr"></div>
+        </div>
+
       </div>
     </div>
   `;
 
   const btn = document.getElementById("btnLinePrefill");
   const warn = document.getElementById("rfWarn");
+  const saveErr = document.getElementById("rfSaveErr");
+
+  function setCancelErr(msg){
+    const el = document.getElementById("cancelErr");
+    if(el) el.textContent = msg || "";
+  }
 
   function updateActions(){
     const form = {
@@ -600,11 +743,34 @@ function renderEventDetail(e){
       tel:  (document.getElementById("rfTel")?.value || "").trim(),
       area: (document.getElementById("rfArea")?.value || "").trim(),
     };
-
     const msg = buildLinePrefillMessage(n, form);
 
-    btn.onclick = (ev)=>{
+    btn.onclick = async (ev)=>{
       ev.preventDefault();
+
+      saveErr.textContent = "";
+      try{
+        const eventId = document.getElementById("eventId")?.value || "";
+        if(eventId && form.tel){
+          const res = await apiReserveUpsert({
+            eventId,
+            eventTitle: n.title,
+            eventDate: n.date,
+            eventTime: (n.timeFrom||n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` : (n.time||""),
+            name: form.name,
+            age: form.age,
+            tel: form.tel,
+            area: form.area,
+            status: "pending"
+          });
+          if(res && res.ok === false){
+            saveErr.textContent = "（参考）サーバー保存に失敗： " + (res.error||"");
+          }
+        }
+      }catch(e){
+        saveErr.textContent = "（参考）サーバー保存に失敗： " + (e.message||e);
+      }
+
       openLineReserve(msg);
     };
 
@@ -628,6 +794,30 @@ function renderEventDetail(e){
     if(el) el.addEventListener("input", updateActions);
   });
   updateActions();
+
+  document.getElementById("btnCancel")?.addEventListener("click", async ()=>{
+    try{
+      setCancelErr("");
+      const eventId = document.getElementById("eventId")?.value.trim() || "";
+      const phone = document.getElementById("cancelPhone")?.value.trim() || "";
+      const reason = document.getElementById("cancelReason")?.value.trim() || "";
+
+      if(!eventId){ setCancelErr("イベントIDが取得できません。"); return; }
+      if(!phone){ setCancelErr("電話番号を入力してください。"); return; }
+
+      if(!confirm("キャンセル申請しますか？")) return;
+
+      const res = await apiCancel({ eventId, phone, reason });
+      if(res && res.ok){
+        alert("キャンセル申請を受け付けました。");
+        closeModal();
+      }else{
+        setCancelErr(res?.error || "キャンセルに失敗しました（GAS側の実装をご確認ください）");
+      }
+    }catch(e){
+      setCancelErr("キャンセルに失敗：" + (e.message||e));
+    }
+  });
 
   if(lastListDay){
     $("btnBackList").style.display="inline-flex";
@@ -716,13 +906,10 @@ function render(){
     evs.slice(0,2).forEach(e=>{
       const n = normalizeEvent(e);
 
-      const timeStr =
-        (n.timeFrom || n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` :
-        (n.time ? String(n.time) : "");
+      /* ✅ 要望②：カレンダー上は「枠に収まるまでのタイトルだけ」＝タイトルのみ */
+      const label = n.title;
 
-      const label = timeStr ? `${n.title}（${timeStr}）` : n.title;
-
-      chips += `<div class="chip" data-eid="${escapeHtml(n.id)}">${escapeHtml(label)}</div>`;
+      chips += `<div class="chip" data-eid="${escapeHtml(n.id)}" title="${escapeHtml(n.title)}">${escapeHtml(label)}</div>`;
     });
     if(evs.length>2){
       chips+=`<div class="moreBtn" data-day="${escapeHtml(day)}">+${evs.length-2}件</div>`;
