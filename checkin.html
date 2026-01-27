@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>当日チェックイン</title>
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 14px 40px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted)}
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 10px;border-radius:10px;cursor:pointer;
+  font-size:12px;
+  text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:6px;
+}
+.btn.primary{border-color:rgba(79,124,255,.35);background:rgba(79,124,255,.06);color:#1f3b8f}
+.btn.danger{border-color:#fca5a5;color:#b91c1c}
+.btn.ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08);color:#065f46}
+.btn.small{padding:6px 8px;border-radius:9px;font-size:12px}
+.input,.select{
+  border:1px solid var(--line);padding:8px 10px;border-radius:10px;width:100%;
+  font-size:14px;background:#fff;
+}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.err{color:#b91c1c;font-size:12px}
+.badge{
+  font-size:11px;padding:4px 8px;border-radius:999px;
+  border:1px solid var(--line);background:#fff;color:var(--muted);
+}
+.badge.ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08);color:#065f46}
+.badge.warn{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08);color:#7c2d12}
+.main{
+  display:grid;
+  grid-template-columns: 1fr 1.6fr; /* 左：イベント / 右：参加者 */
+  gap:12px;
+  align-items:start;
+}
+@media (max-width: 920px){
+  .main{grid-template-columns:1fr}
+}
+
+/* list */
+.list{display:flex;flex-direction:column;gap:10px}
+.item{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;
+}
+.item.active{outline:2px solid rgba(79,124,255,.22);border-color:rgba(79,124,255,.45)}
+.item .title{font-weight:900}
+.item .subline{font-size:12px;color:var(--muted);margin-top:4px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+
+/* participants */
+.pWrap{display:flex;flex-direction:column;gap:12px}
+.pGroupTitle{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pList{display:flex;flex-direction:column;gap:8px}
+.pItem{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.pLeft{min-width:260px}
+.pName{font-weight:900;display:flex;align-items:center;gap:8px}
+.pMeta{font-size:12px;color:var(--muted);margin-top:4px}
+.pRight{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.tag{
+  font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);
+  background:#fff;color:var(--muted);
+}
+.tag.ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08);color:#065f46}
+.tag.ng{border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.06);color:#7f1d1d}
+.receipt{
+  width:110px;
+  padding:7px 8px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  font-size:13px;
+}
+.smallNote{font-size:11px;color:var(--muted)}
+.hr{height:1px;background:var(--line);margin:10px 0}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>当日チェックイン</h1>
+        <div class="sub">Participantsと連動：チェックイン・受付番号・参加者検索／男女別表示</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <a class="btn" id="backAdmin" href="./admin.html">管理へ戻る</a>
+      <button class="btn" id="btnReload">更新</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- 左：イベント -->
+    <section class="card">
+      <div class="hd">
+        <div style="font-weight:900">イベント選択</div>
+        <span class="badge" id="evCount">-</span>
+        <div style="flex:1"></div>
+        <button class="btn small" id="btnToday">今日に絞る</button>
+        <button class="btn small" id="btnAll">全イベントから選ぶ</button>
+      </div>
+      <div class="bd">
+        <div class="meta" id="evStatus">-</div>
+        <div class="hr"></div>
+        <input class="input" id="evQ" placeholder="検索（タイトル/場所/メモ…）">
+        <div style="height:10px"></div>
+        <div class="list" id="evList"></div>
+        <div class="err" id="evErr" style="margin-top:10px"></div>
+      </div>
+    </section>
+
+    <!-- 右：参加者 -->
+    <section class="card">
+      <div class="hd" style="align-items:flex-start">
+        <div>
+          <div style="font-weight:900">参加者チェックイン</div>
+          <div class="meta" id="pStatus">イベントを選択してください</div>
+        </div>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          <span class="badge" id="bTotal">合計 -</span>
+          <span class="badge ok" id="bIn">チェックイン -</span>
+          <span class="badge warn" id="bOut">未 -</span>
+        </div>
+      </div>
+
+      <div class="bd">
+        <div id="pHead" style="display:none">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <div style="font-weight:900" id="selTitle">-</div>
+            <span class="badge" id="feeBadge">参加費：-</span>
+          </div>
+          <div class="meta" id="selMeta">-</div>
+          <div style="height:10px"></div>
+          <input class="input" id="pQ" placeholder="参加者検索（名前/連絡先/受付番号）">
+          <div class="smallNote" style="margin-top:6px">
+            使い方：来店したら「チェックイン」→ 受付番号入力（自動保存）／取り消しも可
+          </div>
+          <div class="hr"></div>
+        </div>
+
+        <div id="pBody">
+          <div class="meta">左の一覧からイベントを選ぶと、参加者が表示されます。</div>
+        </div>
+
+        <div class="err" id="pErr" style="margin-top:10px"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ========= 設定 ========= */
+const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+const ADMIN_KEY = "kei591117"; // ※GAS側で検証してなくても、将来のため送っておく
+const $ = id => document.getElementById(id);
+
+/* ========= state ========= */
+let allEvents = [];
+let viewMode = "today"; // "today" | "all"
+let selectedEventId = null;
+let selectedEvent = null;
+let participants = [];
+
+/* ========= util ========= */
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function pad2(n){return String(n).padStart(2,"0")}
+function fmtJP(v){
+  const d = parseDateFlex(v);
+  if(!d) return String(v||"-");
+  return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())}`;
+}
+function parseDateFlex(v){
+  if(v===null||v===undefined||v==="") return null;
+  if(Object.prototype.toString.call(v)==="[object Date]" && !isNaN(v.getTime())) return v;
+  if(typeof v==="number"){
+    if(v>20000 && v<80000){
+      const base=new Date(Date.UTC(1899,11,30));
+      return new Date(base.getTime()+v*86400000);
+    }
+    const d=new Date(v);
+    return isNaN(d)?null:d;
+  }
+  const s=String(v).trim();
+  const jp=s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if(jp) return new Date(jp[1],jp[2]-1,jp[3]);
+  const m=s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+  if(m) return new Date(m[1],m[2]-1,m[3]);
+  const d=new Date(s);
+  return isNaN(d)?null:d;
+}
+function isTodayEvent(ev){
+  const d = parseDateFlex(ev.date ?? ev.eventDate ?? ev.startDate ?? "");
+  if(!d) return false;
+  const t = new Date(); t.setHours(0,0,0,0);
+  d.setHours(0,0,0,0);
+  return d.getTime() === t.getTime();
+}
+function normalizeEvent(e){
+  const title = e.title ?? e.name ?? "(無題)";
+  const date  = e.date ?? e.eventDate ?? e.startDate ?? "";
+  const timeFrom = e.timeFrom ?? "";
+  const timeTo   = e.timeTo ?? "";
+  const time  =
+    (timeFrom || timeTo) ? `${timeFrom||""}${timeTo?("〜"+timeTo):"〜"}` :
+    (e.time ?? "");
+  const place = e.place ?? "";
+  const note  = e.note ?? e.memo ?? e.description ?? "";
+  const priceM = e.priceM ?? e.feeM ?? "";
+  const priceF = e.priceF ?? e.feeF ?? "";
+  return {title,date,time,timeFrom,timeTo,place,note,priceM,priceF};
+}
+function normalizeGender(g){
+  const s = String(g||"").trim().toLowerCase();
+  if(!s) return "unknown";
+  if(s.includes("男") || s==="m" || s.includes("male")) return "male";
+  if(s.includes("女") || s==="f" || s.includes("female")) return "female";
+  return "unknown";
+}
+function toBool(v){
+  if(v===true) return true;
+  const s = String(v||"").toLowerCase().trim();
+  return (s==="true" || s==="1" || s==="yes" || s==="checked" );
+}
+
+function yen(v){
+  const n = Number(v);
+  if(!isFinite(n)) return "-";
+  return n.toLocaleString("ja-JP");
+}
+
+/* ========= API ========= */
+async function fetchJson(url, opt){
+  const r = await fetch(url, Object.assign({cache:"no-store"}, opt||{}));
+  const j = await r.json().catch(()=> ({}));
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+async function apiEventsAll(){
+  // list（未来/今日） + past:list（過去）を両方取って結合（選択の自由度UP）
+  const a = await fetchJson(API_URL + "?action=list").catch(()=>({events:[]}));
+  const b = await fetchJson(API_URL + "?action=past:list").catch(()=>({events:[]}));
+  const evs = []
+    .concat(a.events || a.data?.events || [])
+    .concat(b.events || b.data?.events || []);
+  // idで重複排除
+  const m = new Map();
+  for(const e of evs){
+    const id = String(e.id||"");
+    if(!id) continue;
+    if(!m.has(id)) m.set(id, e);
+  }
+  return Array.from(m.values());
+}
+async function apiParticipants(eventId){
+  const j = await fetchJson(`${API_URL}?action=participants:list&eventId=${encodeURIComponent(eventId)}`);
+  return j.participants || j.data?.participants || [];
+}
+async function apiPost(action, payload){
+  const body = JSON.stringify(Object.assign({ key: ADMIN_KEY, action }, payload||{}));
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body
+  });
+  return j;
+}
+
+/* ========= UI：イベント一覧 ========= */
+function filteredEvents(){
+  const q = ($("evQ").value||"").toLowerCase().trim();
+  let evs = allEvents.slice();
+
+  if(viewMode==="today"){
+    evs = evs.filter(isTodayEvent);
+  }
+
+  // 日付降順
+  evs.sort((a,b)=>{
+    const da=parseDateFlex(a.date ?? a.eventDate ?? a.startDate);
+    const db=parseDateFlex(b.date ?? b.eventDate ?? b.startDate);
+    return (db?db.getTime():0) - (da?da.getTime():0);
+  });
+
+  if(q){
+    evs = evs.filter(e=>{
+      const n = normalizeEvent(e);
+      const s = `${n.title} ${n.place} ${n.note}`.toLowerCase();
+      return s.includes(q);
+    });
+  }
+  return evs;
+}
+
+function renderEvents(){
+  $("evErr").textContent = "";
+  const evs = filteredEvents();
+  $("evCount").textContent = `${evs.length}件`;
+
+  if(!evs.length){
+    $("evList").innerHTML = `<div class="meta">イベントがありません</div>`;
+    return;
+  }
+
+  $("evList").innerHTML = evs.map(e=>{
+    const n = normalizeEvent(e);
+    const active = (selectedEventId && String(selectedEventId)===String(e.id)) ? "active" : "";
+    return `
+      <div class="item ${active}" data-ev="${escapeHtml(e.id)}">
+        <div style="min-width:240px">
+          <div class="title">${fmtJP(n.date)}｜${escapeHtml(n.title)}</div>
+          <div class="subline">${escapeHtml(n.time||"-")}・${escapeHtml(n.place||"-")}${n.note?("・"+escapeHtml(n.note)):""}</div>
+        </div>
+        <div class="actions">
+          <button class="btn small primary" data-select="${escapeHtml(e.id)}">選択</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("[data-select]").forEach(b=>{
+    b.onclick = ()=> selectEvent(b.dataset.select);
+  });
+
+  // 行クリックでも選択
+  document.querySelectorAll("[data-ev]").forEach(row=>{
+    row.onclick = (ev)=>{
+      if(ev.target && ev.target.closest("button")) return;
+      selectEvent(row.dataset.ev);
+    };
+  });
+}
+
+/* ========= UI：参加者 ========= */
+function participantLabel(p){
+  const name = p.name ?? p.fullName ?? p.nickname ?? "(名前なし)";
+  const age  = p.age ?? p.Age ?? "";
+  const gender = p.gender ?? p.sex ?? p.Gender ?? "";
+  const contact = p.contact ?? p.tel ?? p.phone ?? "";
+  const contactWay = p.contactWay ?? p.contactMethod ?? p.method ?? "";
+  const memo = p.memo ?? p.note ?? "";
+  const receiptNo = p.receiptNo ?? p.受付番号 ?? "";
+  const checkedIn = toBool(p.checkedIn);
+  return {name,age,gender,contact,contactWay,memo,receiptNo,checkedIn};
+}
+
+function computeCounts(ps){
+  const total = ps.length;
+  const inCnt = ps.filter(x=>toBool(x.checkedIn)).length;
+  const outCnt = total - inCnt;
+  $("bTotal").textContent = `合計 ${total}`;
+  $("bIn").textContent = `チェックイン ${inCnt}`;
+  $("bOut").textContent = `未 ${outCnt}`;
+}
+
+function renderParticipants(){
+  $("pErr").textContent = "";
+  if(!selectedEvent){
+    $("pHead").style.display="none";
+    $("pBody").innerHTML = `<div class="meta">左の一覧からイベントを選ぶと、参加者が表示されます。</div>`;
+    return;
+  }
+
+  const n = normalizeEvent(selectedEvent);
+  $("pHead").style.display="block";
+  $("selTitle").textContent = `${fmtJP(n.date)}｜${n.title}`;
+  $("selMeta").textContent = `${n.time||"-"}・${n.place||"-"}${n.note?("・"+n.note):""}`;
+
+  const feeTxt = `男性 ${n.priceM||"-"}円 / 女性 ${n.priceF||"-"}円`;
+  $("feeBadge").textContent = `参加費：${feeTxt}`;
+
+  // search
+  const q = ($("pQ").value||"").toLowerCase().trim();
+
+  let ps = participants.slice();
+  if(q){
+    ps = ps.filter(p=>{
+      const pp = participantLabel(p);
+      const s = `${pp.name} ${pp.contact} ${pp.receiptNo}`.toLowerCase();
+      return s.includes(q);
+    });
+  }
+
+  computeCounts(ps);
+
+  const male = ps.filter(p=>normalizeGender(participantLabel(p).gender)==="male");
+  const female = ps.filter(p=>normalizeGender(participantLabel(p).gender)==="female");
+  const unk = ps.filter(p=>normalizeGender(participantLabel(p).gender)==="unknown");
+
+  const html =
+    groupHtml("男性", male) +
+    groupHtml("女性", female) +
+    (unk.length ? groupHtml("性別不明", unk) : "");
+
+  $("pBody").innerHTML = `<div class="pWrap">${html}</div>`;
+}
+
+function groupHtml(label, list){
+  const rows = (list||[]).map(p=>{
+    const pp = participantLabel(p);
+    const checked = pp.checkedIn;
+    const statusTag = checked
+      ? `<span class="tag ok">チェックイン済</span>`
+      : `<span class="tag ng">未チェックイン</span>`;
+
+    const metaParts = [];
+    if(pp.age) metaParts.push(`年齢：${pp.age}`);
+    if(pp.contactWay) metaParts.push(`連絡：${pp.contactWay}`);
+    if(pp.contact) metaParts.push(`連絡先：${pp.contact}`);
+    if(pp.memo) metaParts.push(`メモ：${pp.memo}`);
+
+    const receiptVal = escapeHtml(pp.receiptNo||"");
+
+    return `
+      <div class="pItem">
+        <div class="pLeft">
+          <div class="pName">${escapeHtml(pp.name)}</div>
+          <div class="pMeta">${escapeHtml(metaParts.join(" / ") || "—")}</div>
+         <div class="smallNote" style="margin-top:6px">
+  参加費: ${escapeHtml(p.finalFee ?? p.fee ?? p.amount ?? "")}円 / pid: ${escapeHtml(p.pid||"")}
+</div>
+        </div>
+
+        <div class="pRight">
+          ${statusTag}
+
+          <input class="receipt" data-receipt="${escapeHtml(p.pid)}"
+                 placeholder="受付番号" value="${receiptVal}" />
+
+          <button class="btn small" data-save-receipt="${escapeHtml(p.pid)}">番号保存</button>
+
+          ${
+            checked
+              ? `<button class="btn small danger" data-uncheck="${escapeHtml(p.pid)}">取り消し</button>`
+              : `<button class="btn small ok" data-check="${escapeHtml(p.pid)}">チェックイン</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div>
+      <div class="pGroupTitle">
+        <div style="font-weight:900">${escapeHtml(label)}</div>
+        <span class="badge">${list.length}名</span>
+      </div>
+      <div class="pList" style="margin-top:8px">
+        ${list.length ? rows : `<div class="meta">該当なし</div>`}
+      </div>
+    </div>
+  `;
+}
+
+/* ========= actions ========= */
+async function selectEvent(eventId){
+  selectedEventId = eventId;
+  selectedEvent = allEvents.find(x=>String(x.id)===String(eventId)) || null;
+
+  renderEvents();
+
+  if(!selectedEvent){
+    $("pStatus").textContent = "イベントが見つかりません";
+    participants = [];
+    renderParticipants();
+    return;
+  }
+
+  $("pStatus").textContent = "参加者を読み込み中…";
+  $("pBody").innerHTML = `<div class="meta">読み込み中…</div>`;
+
+  try{
+    participants = await apiParticipants(eventId);
+    $("pStatus").textContent = "OK";
+    renderParticipants();
+    bindParticipantEvents_();
+  }catch(err){
+    participants = [];
+    $("pStatus").textContent = "読込失敗";
+    $("pErr").textContent = "参加者の読み込みに失敗： " + (err.message || err);
+    renderParticipants();
+  }
+}
+
+function bindParticipantEvents_(){
+  // 受付番号：自動保存（blur / Enter）＋保存ボタン
+  document.querySelectorAll("[data-receipt]").forEach(inp=>{
+    inp.addEventListener("keydown", async (e)=>{
+      if(e.key==="Enter"){
+        e.preventDefault();
+        await saveReceiptNo_(inp.dataset.receipt, inp.value);
+      }
+    });
+    inp.addEventListener("blur", async ()=>{
+      // blurで自動保存（空でもOK）
+      await saveReceiptNo_(inp.dataset.receipt, inp.value);
+    });
+  });
+
+  document.querySelectorAll("[data-save-receipt]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const pid = btn.dataset.saveReceipt;
+      const inp = document.querySelector(`[data-receipt="${CSS.escape(pid)}"]`);
+      await saveReceiptNo_(pid, inp ? inp.value : "");
+    };
+  });
+
+  // チェックイン
+  document.querySelectorAll("[data-check]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const pid = btn.dataset.check;
+      await doCheckin_(pid);
+    };
+  });
+
+  // 取り消し
+  document.querySelectorAll("[data-uncheck]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const pid = btn.dataset.uncheck;
+      await doUncheckin_(pid);
+    };
+  });
+}
+
+async function saveReceiptNo_(pid, receiptNo){
+  if(!selectedEventId) return;
+  try{
+    $("pStatus").textContent = "保存中…";
+    await apiPost("participants:setReceiptNo", { pid, receiptNo });
+    // ローカル反映
+    const p = participants.find(x=>String(x.pid)===String(pid));
+    if(p) p.receiptNo = receiptNo;
+    $("pStatus").textContent = "OK";
+  }catch(err){
+    $("pStatus").textContent = "失敗";
+    $("pErr").textContent = "受付番号の保存に失敗： " + (err.message || err);
+  }
+}
+
+async function doCheckin_(pid){
+  if(!selectedEventId) return;
+  try{
+    $("pStatus").textContent = "チェックイン中…";
+    await apiPost("participants:checkin", { pid, by:"受付" });
+    // 再読込（確実）
+    participants = await apiParticipants(selectedEventId);
+    $("pStatus").textContent = "OK";
+    renderParticipants();
+    bindParticipantEvents_();
+  }catch(err){
+    $("pStatus").textContent = "失敗";
+    alert("チェックイン失敗： " + (err.message || err));
+  }
+}
+
+async function doUncheckin_(pid){
+  if(!selectedEventId) return;
+  try{
+    $("pStatus").textContent = "取り消し中…";
+    await apiPost("participants:uncheckin", { pid });
+    participants = await apiParticipants(selectedEventId);
+    $("pStatus").textContent = "OK";
+    renderParticipants();
+    bindParticipantEvents_();
+  }catch(err){
+    $("pStatus").textContent = "失敗";
+    alert("取り消し失敗： " + (err.message || err));
+  }
+}
+
+/* ========= 起動 ========= */
+async function reload(){
+  $("evStatus").textContent = "読込中…";
+  $("evErr").textContent = "";
+  try{
+    allEvents = await apiEventsAll();
+    $("evStatus").textContent = "OK";
+    renderEvents();
+
+    // 既に選択中なら再表示
+    if(selectedEventId){
+      const keep = selectedEventId;
+      selectedEvent = allEvents.find(x=>String(x.id)===String(keep)) || null;
+      if(selectedEvent){
+        participants = await apiParticipants(keep);
+        renderParticipants();
+        bindParticipantEvents_();
+      }else{
+        selectedEventId = null;
+        selectedEvent = null;
+        participants = [];
+        renderParticipants();
+      }
+    }
+  }catch(err){
+    $("evStatus").textContent = "読込失敗";
+    $("evErr").textContent = "読み込みに失敗： " + (err.message || err);
+  }
+}
+
+$("btnReload").onclick = reload;
+$("evQ").oninput = renderEvents;
+$("pQ").oninput = ()=>{ renderParticipants(); bindParticipantEvents_(); };
+
+$("btnToday").onclick = ()=>{ viewMode="today"; renderEvents(); };
+$("btnAll").onclick = ()=>{ viewMode="all"; renderEvents(); };
+
+const ADMIN_PAGE = "./admin.html";
+$("backAdmin").setAttribute("href", ADMIN_PAGE);
+$("backAdmin").addEventListener("click",(e)=>{
+  e.preventDefault();
+  window.location.assign(ADMIN_PAGE);
+});
+
+reload();
+</script>
+</body>
+</html>

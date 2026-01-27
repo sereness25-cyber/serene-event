@@ -106,6 +106,46 @@ h1{font-size:18px;margin:0}
 .evMeta{font-size:12px;color:var(--muted);margin-top:4px}
 .evRow{font-size:13px;margin-top:6px}
 
+/* ✅ 追加：詳細 2カラム（概要を右を広めに） */
+.evLayout{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns: 1fr 1.45fr; /* 右を広め */
+  gap:12px;
+  align-items:start;
+}
+.evLayout.single{grid-template-columns:1fr;}
+@media (max-width:740px){
+  .evLayout{grid-template-columns:1fr;}
+}
+.evLeft .evRow{margin-top:6px}
+.evRight{
+  border-left:1px dashed var(--line);
+  padding-left:12px;
+}
+@media (max-width:740px){
+  .evRight{border-left:none;padding-left:0;border-top:1px dashed var(--line);padding-top:10px;margin-top:4px;}
+}
+.summaryBox{
+  background:#fafbff;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:10px 12px;
+}
+.summaryTtl{
+  font-size:12px;
+  color:var(--muted);
+  font-weight:800;
+  margin:0 0 6px 0;
+  letter-spacing:.02em;
+}
+.summaryText{
+  font-size:13px;
+  line-height:1.55;
+  white-space:pre-wrap;      /* 改行を活かす */
+  word-break:break-word;
+}
+
 /* LINE予約フォーム */
 .lineReserveBox{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px;}
 .reserveForm{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#fafbff;}
@@ -131,27 +171,10 @@ h1{font-size:18px;margin:0}
 .formBtns .btnLike.secondary{box-shadow:none;background:#fff;border:1px solid var(--line);}
 .warnText{font-size:12px;color:#b45309;margin-top:6px}
 
-.copyBox{
-  margin-top:8px;
-  display:none;
-  border:1px dashed var(--line);
-  border-radius:12px;
-  background:#fff;
-  padding:10px;
-}
-.copyBox .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-.copyBox textarea{
-  width:100%; min-height:120px; resize:vertical;
-  padding:10px; border-radius:12px; border:1px solid var(--line);
-  font-size:12px;
-  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-}
-
 /* 画像保存中 */
 .saving{opacity:.65;pointer-events:none;filter:grayscale(.15);}
 
 /* ===== ロゴ＋タイトル 横並び調整（最終版） ===== */
-
 header{
   display:flex;
   justify-content:space-between;
@@ -159,14 +182,12 @@ header{
   gap:12px;
   flex-wrap:wrap;
 }
-
 .brand{
   display:flex;
   align-items:center;
   gap:12px;
   min-width:240px;
 }
-
 .logo{
   width:64px;
   height:64px;
@@ -179,23 +200,20 @@ header{
   display:flex;
   align-items:center;
   justify-content:center;
-  overflow:hidden;   /* ← 重要 */
+  overflow:hidden;
 }
-
 .logo img{
   width:100%;
   height:100%;
-  object-fit:cover;  /* ← 枠いっぱいにする核心 */
+  object-fit:cover;
   display:block;
 }
-
 .brand h1{
   margin:0;
-  font-size:20px;   /* 18 → 20 */
+  font-size:20px;
   font-weight:700;
   line-height:1.25;
 }
-
 .brand .sub{
   margin-top:3px;
   font-size:12px;
@@ -212,11 +230,10 @@ header{
 <header>
   <div class="brand">
     <div class="logo">
-  <img src="./logo.png" alt="ロゴ">
-</div>
+      <img src="./logo.png" alt="ロゴ">
+    </div>
     <div>
       <h1>イベントカレンダー</h1>
-     
     </div>
   </div>
 
@@ -336,11 +353,15 @@ function normalizeEvent(e){
   const pay    = e.pay ?? e.payment ?? payMethod ?? "";
   const age    = e.age ?? "";
   const note   = e.note ?? "";
-  const memo   = e.memo ?? "";
+
+  // ✅ 追加：概要（新） ※旧memoとも互換
+  const summary = e.summary ?? e.overview ?? e.memo ?? "";
+
   const target = e.target ?? "";
   const deadline = e.deadline ?? "";
   const id = (e.id!=null)? String(e.id) : "";
-  return {id,title,date,time,timeFrom,timeTo,place,priceM,priceF,slots,pay,payMethod,age,note,memo,target,deadline};
+
+  return {id,title,date,time,timeFrom,timeTo,place,priceM,priceF,slots,pay,payMethod,age,note,summary,target,deadline};
 }
 
 /* ===========================
@@ -426,7 +447,7 @@ async function saveScheduleAsPng(){
 $("btnSavePng").onclick = saveScheduleAsPng;
 
 /* ===========================
-   LINE 送信前テキスト & 起動
+   LINE 起動
 =========================== */
 function isMobileLineCapable(){
   const ua = navigator.userAgent || "";
@@ -455,7 +476,6 @@ function buildLinePrefillMessage(n, form){
   return lines.join("\n");
 }
 
-// スマホ：公式LINE宛て（宛先選択なし）で開く
 function buildLineDeepLink(message){
   return `line://oaMessage/${encodeURIComponent(LINE_TO)}/?${encodeURIComponent(message)}`;
 }
@@ -463,11 +483,9 @@ function buildLineDeepLink(message){
 function openLineReserve(message){
   if(isMobileLineCapable()){
     location.href = buildLineDeepLink(message);
-    // LINE未インストール等の保険
     setTimeout(()=>{ location.href = LINE_ADD_URL; }, 900);
   }else{
-    // PC：line.me に吸われやすいので、コピー導線を出す
-    // （友だち追加ページも開ける）
+    // ✅PCはコピペ機能を無くす：友だち追加だけ開く
     window.open(LINE_ADD_URL, "_blank");
   }
 }
@@ -492,7 +510,8 @@ function renderEventDetail(e){
   const targetStr = String(n.target||"").trim();
 
   const noteStr = String(n.note||"").trim();
-  const memoStr = String(n.memo||"").trim();
+  const summaryStr = String(n.summary||"").trim();
+  const hasSummary = !!summaryStr;
 
   $("mTitle").textContent="イベント詳細";
   $("mBody").innerHTML = `
@@ -500,17 +519,33 @@ function renderEventDetail(e){
       <div class="evName">${escapeHtml(n.title)}</div>
       <div class="evMeta">${escapeHtml(dateJP)} ${escapeHtml(timeStr)}</div>
 
-      ${n.place ? `<div class="evRow">場所：${escapeHtml(n.place)}</div>` : ``}
-      ${priceStr ? `<div class="evRow">料金：${escapeHtml(priceStr)}</div>` : ``}
-      ${slotsStr ? `<div class="evRow">募集：${escapeHtml(slotsStr)}名</div>` : ``}
-      ${ageStr ? `<div class="evRow">対象年齢：${escapeHtml(ageStr)}</div>` : ``}
+      <div class="evLayout ${hasSummary ? "" : "single"}">
+        <div class="evLeft">
+          ${n.place ? `<div class="evRow">場所：${escapeHtml(n.place)}</div>` : ``}
+          ${priceStr ? `<div class="evRow">料金：${escapeHtml(priceStr)}</div>` : ``}
+          ${slotsStr ? `<div class="evRow">募集：${escapeHtml(slotsStr)}名</div>` : ``}
+          ${ageStr ? `<div class="evRow">対象年齢：${escapeHtml(ageStr)}</div>` : ``}
 
-      ${targetStr ? `<div class="evRow">対象：${escapeHtml(targetStr)}</div>` : ``}
-      ${deadlineStr ? `<div class="evRow">〆切：${escapeHtml(deadlineStr)}</div>` : ``}
-      ${payStr ? `<div class="evRow">支払方法：${escapeHtml(payStr)}</div>` : ``}
+          ${targetStr ? `<div class="evRow">対象：${escapeHtml(targetStr)}</div>` : ``}
+          ${deadlineStr ? `<div class="evRow">〆切：${escapeHtml(deadlineStr)}</div>` : ``}
+          ${payStr ? `<div class="evRow">支払方法：${escapeHtml(payStr)}</div>` : ``}
 
-      ${noteStr ? `<div class="evRow">種類：${escapeHtml(noteStr)}</div>` : ``}
-      ${memoStr ? `<div class="evRow">メモ：${escapeHtml(memoStr)}</div>` : ``}
+          ${noteStr ? `<div class="evRow">種類：${escapeHtml(noteStr)}</div>` : ``}
+        </div>
+
+        ${
+          hasSummary
+            ? `
+              <div class="evRight">
+                <div class="summaryBox">
+                  <p class="summaryTtl">概要</p>
+                  <div class="summaryText">${escapeHtml(summaryStr)}</div>
+                </div>
+              </div>
+            `
+            : ``
+        }
+      </div>
 
       <div class="lineReserveBox">
         <div class="reserveForm">
@@ -536,7 +571,7 @@ function renderEventDetail(e){
 
           <div class="smallNote">
             ※スマホ：公式LINE（${escapeHtml(LINE_TO)}）のトークが開き、入力欄に予約文が入ります（送信はあなたが行います）。<br>
-            ※PC：友だち追加を開き、下の「コピー」から本文を貼り付けて送ってください。
+            ※PC：友だち追加ページが開きます。
           </div>
 
           <div class="formBtns">
@@ -549,14 +584,6 @@ function renderEventDetail(e){
             </a>
           </div>
 
-          <div class="copyBox" id="copyBox">
-            <div class="row">
-              <div style="font-weight:800;font-size:12px;">PC用：予約文コピー</div>
-              <button class="btn" id="btnCopy">📋 コピー</button>
-            </div>
-            <textarea id="copyText" readonly></textarea>
-          </div>
-
           <div class="warnText" id="rfWarn" style="display:none"></div>
         </div>
       </div>
@@ -565,8 +592,6 @@ function renderEventDetail(e){
 
   const btn = document.getElementById("btnLinePrefill");
   const warn = document.getElementById("rfWarn");
-  const copyBox = document.getElementById("copyBox");
-  const copyText = document.getElementById("copyText");
 
   function updateActions(){
     const form = {
@@ -578,32 +603,10 @@ function renderEventDetail(e){
 
     const msg = buildLinePrefillMessage(n, form);
 
-    // ボタン押下で開く（href直打ちはしない）
     btn.onclick = (ev)=>{
       ev.preventDefault();
       openLineReserve(msg);
     };
-
-    // PC用コピー表示
-    if(!isMobileLineCapable()){
-      copyBox.style.display = "block";
-      copyText.value = msg;
-      const btnCopy = document.getElementById("btnCopy");
-      btnCopy.onclick = async ()=>{
-        try{
-          await navigator.clipboard.writeText(msg);
-          btnCopy.textContent = "✅ コピー済み";
-          setTimeout(()=>btnCopy.textContent="📋 コピー", 1200);
-        }catch{
-          // clipboard失敗時：選択してコピー
-          copyText.focus();
-          copyText.select();
-          document.execCommand("copy");
-        }
-      };
-    }else{
-      copyBox.style.display = "none";
-    }
 
     const missing = [];
     if(!form.name) missing.push("お名前");
@@ -709,18 +712,18 @@ function render(){
     const day=inM?`${y}-${pad(m+1)}-${pad(d)}`:"";
     const evs=inM?(byDay[day]||[]):[];
 
-   let chips="";
-evs.slice(0,2).forEach(e=>{
-  const n = normalizeEvent(e);
+    let chips="";
+    evs.slice(0,2).forEach(e=>{
+      const n = normalizeEvent(e);
 
-  const timeStr =
-    (n.timeFrom || n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` :
-    (n.time ? String(n.time) : "");
+      const timeStr =
+        (n.timeFrom || n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` :
+        (n.time ? String(n.time) : "");
 
-  const label = timeStr ? `${n.title}（${timeStr}）` : n.title;
+      const label = timeStr ? `${n.title}（${timeStr}）` : n.title;
 
-  chips += `<div class="chip" data-eid="${escapeHtml(n.id)}">${escapeHtml(label)}</div>`;
-});
+      chips += `<div class="chip" data-eid="${escapeHtml(n.id)}">${escapeHtml(label)}</div>`;
+    });
     if(evs.length>2){
       chips+=`<div class="moreBtn" data-day="${escapeHtml(day)}">+${evs.length-2}件</div>`;
     }

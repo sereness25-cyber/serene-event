@@ -130,7 +130,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
     <span class="meta" id="loadedAt">-</span>
   </div>
   <div class="bd">
-    <input class="input" id="q" placeholder="検索（店名/Discord/恋活…）">
+    <input class="input" id="q" placeholder="検索（店名/Discord/恋活/概要…）">
   </div>
 </section>
 
@@ -187,30 +187,28 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
           <div class="fieldLabel">料金（女性）</div>
           <input class="field" id="priceF" inputmode="numeric" placeholder="例）500">
         </div>
-        <div>
-          <div class="fieldLabel">メモ</div>
-          <input class="field" id="memo" placeholder="任意">
+
+        <!-- ✅ メモ欄は削除：写真の“概要”欄をメモ相当として使う -->
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">概要</div>
+          <textarea class="field" id="summary" placeholder="例）初参加歓迎。少人数でゆっくり会話。"></textarea>
         </div>
 
-        <!-- ✅追加：〆切（deadline） -->
         <div>
           <div class="fieldLabel">〆切（任意）</div>
           <input class="field" id="deadline" type="date">
         </div>
 
-        <!-- ✅ 追加：対象 -->
         <div>
           <div class="fieldLabel">対象（例：独身限定 / 30-45歳 など）</div>
           <input class="field" id="target" placeholder="例）独身限定 / 30〜45歳 / 初参加歓迎">
         </div>
 
-        <!-- ✅ 追加：支払方法 -->
         <div>
           <div class="fieldLabel">支払方法</div>
           <input class="field" id="payMethod" placeholder="例）PayPay / 現金 / 事前決済 / 当日払い">
         </div>
 
-        <!-- ✅ 追加：キャンセルについて -->
         <div style="grid-column:1 / -1">
           <div class="fieldLabel">キャンセルについて</div>
           <textarea class="field" id="cancelPolicy" placeholder="例）前日まで無料／当日100%／連絡なし100% など"></textarea>
@@ -231,7 +229,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
 <script>
 /* ★あなたの /exec に固定 */
 const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
-
 const $ = (id)=>document.getElementById(id);
 
 let events = [];
@@ -283,13 +280,11 @@ bindNav("linkCustomers","./customers/customers.html");
 
 /* ===== 時刻入力：4桁→HH:mm に自動整形＋自動フォーカス移動 ===== */
 function digitsOnly(s){ return String(s||"").replace(/[^\d]/g,""); }
-
 function toHHMMFromDigits(d){
   const x = digitsOnly(d).slice(0,4);
   if(x.length <= 2) return x;
   return x.slice(0,2) + ":" + x.slice(2,4);
 }
-
 function setValueKeepCaret(el, newVal){
   const start = el.selectionStart ?? newVal.length;
   const before = el.value;
@@ -298,7 +293,6 @@ function setValueKeepCaret(el, newVal){
   const pos = Math.max(0, Math.min(newVal.length, start + delta));
   try{ el.setSelectionRange(pos, pos); }catch(_){}
 }
-
 function bindTimeSmart(fromId, toId){
   const from = document.getElementById(fromId);
   const to = document.getElementById(toId);
@@ -329,7 +323,6 @@ function bindTimeSmart(fromId, toId){
   from.addEventListener("blur", ()=>onBlur(from));
   to.addEventListener("blur", ()=>onBlur(to));
 }
-
 bindTimeSmart("timeFrom","timeTo");
 
 function normalizeTimeField(id){
@@ -361,9 +354,11 @@ function openModal(mode, ev){
     $("priceM").value="";
     $("priceF").value="";
     $("note").value="";
-    $("memo").value="";
 
-    // ✅追加：初期化
+    // ✅ 概要（メモ相当）
+    $("summary").value="";
+
+    // 追加項目
     $("deadline").value="";
     $("target").value="";
     $("payMethod").value="";
@@ -385,12 +380,11 @@ function openModal(mode, ev){
     $("priceM").value=ev.priceM||"";
     $("priceF").value=ev.priceF||"";
     $("note").value=ev.note||"";
-    $("memo").value=ev.memo||"";
 
-    // ✅追加：〆切
+    // ✅ 概要（メモ相当）
+    $("summary").value = ev.summary || ev.memo || "";
+
     $("deadline").value = toDateValue(ev.deadline);
-
-    // ✅追加：反映
     $("target").value = ev.target || "";
     $("payMethod").value = ev.payMethod || ev.pay || "";
     $("cancelPolicy").value = ev.cancelPolicy || "";
@@ -434,7 +428,7 @@ function render(){
   const q = $("q").value.trim();
   const list = q
     ? events.filter(e=>{
-        const s = `${e.title||""} ${e.place||""} ${e.note||""} ${e.target||""} ${e.payMethod||e.pay||""} ${e.deadline||""}`.toLowerCase();
+        const s = `${e.title||""} ${e.place||""} ${e.note||""} ${e.summary||e.memo||""} ${e.target||""} ${e.payMethod||e.pay||""} ${e.deadline||""} ${e.cancelPolicy||""}`.toLowerCase();
         return s.includes(q.toLowerCase());
       })
     : events;
@@ -451,6 +445,7 @@ function render(){
     const targetTxt = e.target || "";
     const cancelTxt = e.cancelPolicy || "";
     const deadlineTxt = e.deadline ? fmtDateJa(e.deadline) : "";
+    const summaryTxt = String(e.summary || e.memo || "").trim();
 
     return `
     <div class="item">
@@ -461,6 +456,9 @@ function render(){
           ・ 料金(男性) ${escapeHtml(fmtMoney(e.priceM))}
           ・ 料金(女性) ${escapeHtml(fmtMoney(e.priceF))}
           ${e.note ? " ・ " + escapeHtml(e.note) : ""}
+
+          ${summaryTxt ? "<br>概要：" + escapeHtml(summaryTxt) : ""}
+
           ${deadlineTxt ? "<br>〆切：" + escapeHtml(deadlineTxt) : ""}
           ${targetTxt ? "<br>対象：" + escapeHtml(targetTxt) : ""}
           ${payTxt ? " ／ 支払：" + escapeHtml(payTxt) : ""}
@@ -495,12 +493,11 @@ function render(){
       $("priceM").value = ev.priceM||"";
       $("priceF").value = ev.priceF||"";
       $("note").value = ev.note||"";
-      $("memo").value = ev.memo||"";
 
-      // ✅〆切もコピー
+      // ✅ 概要（メモ相当）をコピー
+      $("summary").value = ev.summary || ev.memo || "";
+
       $("deadline").value = toDateValue(ev.deadline);
-
-      // ✅追加：コピーにも反映
       $("target").value = ev.target || "";
       $("payMethod").value = ev.payMethod || ev.pay || "";
       $("cancelPolicy").value = ev.cancelPolicy || "";
@@ -529,8 +526,6 @@ $("btnSave").onclick = async ()=>{
 
     const tFrom = normalizeTimeField("timeFrom");
     const tTo   = normalizeTimeField("timeTo");
-
-    // GAS 側が time 列優先の場合に備えて送る
     const timeSingle = (tFrom && tTo) ? `${tFrom}〜${tTo}` : (tFrom || "");
 
     const ev = {
@@ -545,12 +540,11 @@ $("btnSave").onclick = async ()=>{
       priceM: $("priceM").value.trim(),
       priceF: $("priceF").value.trim(),
       note: $("note").value.trim(),
-      memo: $("memo").value.trim(),
 
-      // ✅〆切
+      // ✅ 概要（メモ相当）
+      summary: $("summary").value.trim(),
+
       deadline: $("deadline").value || "",
-
-      // ✅追加：3項目
       target: $("target").value.trim(),
       payMethod: $("payMethod").value.trim(),
       cancelPolicy: $("cancelPolicy").value.trim()

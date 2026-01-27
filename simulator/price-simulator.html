@@ -101,6 +101,22 @@ button.danger{
   background:#eef2ff;border:1px solid #e5e7eb;
   font-size:11px;color:#374151;
 }
+/* ▼ 折りたたみ用 */
+.hd.toggle{
+  cursor:pointer;
+  user-select:none;
+}
+.hd .chev{
+  margin-left:auto;
+  font-size:14px;
+  transition:transform .2s ease;
+}
+.card.closed .bd{
+  display:none;
+}
+.card.closed .chev{
+  transform:rotate(-90deg);
+}
 </style>
 </head>
 
@@ -148,8 +164,11 @@ button.danger{
 </div>
 
 <!-- 参加条件 -->
-<div class="card">
-  <div class="hd">参加条件</div>
+<div class="card" id="card-join">
+  <div class="hd toggle">
+    <span>参加条件</span>
+    <span class="chev">▼</span>
+  </div>
   <div class="bd grid">
     <div>
       <div class="label">男性人数</div>
@@ -180,8 +199,11 @@ button.danger{
 </div>
 
 <!-- 経費 -->
-<div class="card">
-  <div class="hd">経費</div>
+<div class="card" id="card-cost">
+  <div class="hd toggle">
+    <span>経費</span>
+    <span class="chev">▼</span>
+  </div>
   <div class="bd grid">
     <div>
       <div class="label">会場費</div>
@@ -800,6 +822,13 @@ document.querySelectorAll("input").forEach(i=>{
   }
   renderSaved();
 })();
+/* ===== 折りたたみ制御 ===== */
+document.querySelectorAll(".hd.toggle").forEach(hd=>{
+  hd.addEventListener("click",()=>{
+    const card = hd.closest(".card");
+    card.classList.toggle("closed");
+  });
+});
 </script>
 </body>
 </html>

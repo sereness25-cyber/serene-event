@@ -71,7 +71,7 @@ h1{font-size:18px;margin:0}
 .pCard{border-radius:14px;padding:10px;margin-bottom:8px;background:#fff;border:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .pCard.male{ border-color:#dbeafe; }
 .pCard.female{ border-color:#ffe4e6; }
-.pName{font-weight:800}
+.pName{font-weight:800; display:flex; align-items:center; gap:6px; flex-wrap:wrap}
 .pMeta{font-size:12px;color:var(--muted);margin-top:4px}
 .noteSex{font-size:12px;color:#b45309;margin-top:10px}
 .pActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -99,7 +99,7 @@ h1{font-size:18px;margin:0}
   border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:10px;background:#fff;
   display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center
 }
-.rTitle{font-weight:900}
+.rTitle{font-weight:900; display:flex; align-items:center; gap:6px; flex-wrap:wrap}
 .rMeta{font-size:12px;color:var(--muted);margin-top:4px}
 .rActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
@@ -120,6 +120,52 @@ h1{font-size:18px;margin:0}
 .foldBtn .chev{font-weight:900}
 .foldBody{display:block}
 .foldBody.isHidden{display:none}
+
+/* ===== ★追加：カップル成立（ハート選択）モーダル ===== */
+.heartModal .modal{width:min(520px, 92vw)}
+.heartGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:420px){ .heartGrid{grid-template-columns:1fr 1fr} }
+.heartBtn{
+  border:1px solid var(--line);
+  background:#fff;
+  padding:10px 12px;
+  border-radius:14px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:900;
+}
+.heartBtn small{font-weight:600;color:var(--muted)}
+
+/* ===== ★追加：料金表示＆割引入力 ===== */
+.priceRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.pill{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:#fff}
+.pill strong{font-weight:900}
+.smallInput{
+  width:110px;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  font-size:12px;
+}
+
+/* ===== ★追加：集計バー／支払いステータス／CSV ===== */
+.sumBar{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sumPill{
+  font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);
+  background:#fff;display:inline-flex;gap:6px;align-items:center
+}
+.sumPill strong{font-weight:900}
+.sumPill.good{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.sumPill.warn{border-color:#fed7aa;background:#fffbeb;color:#92400e}
+
+.payBadge{
+  font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);
+  background:#fff;display:inline-flex;align-items:center;gap:6px;font-weight:800
+}
+.payBadge.paid{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.payBadge.unpaid{border-color:#fecaca;background:#fff1f2;color:#9f1239}
 </style>
 </head>
 
@@ -237,6 +283,7 @@ h1{font-size:18px;margin:0}
   <div class="hd">
     <strong>参加確定者（このイベント）</strong>
     <input class="input" id="q" placeholder="検索（名前/連絡先/連絡方法）" style="max-width:260px">
+    <button class="btn" id="btnCsvConfirmed" type="button">⬇️ 確定CSV</button>
     <span class="meta" id="count">-</span>
   </div>
   <div class="bd">
@@ -256,6 +303,15 @@ h1{font-size:18px;margin:0}
         </div>
         <div id="listF"></div>
       </div>
+    </div>
+
+    <!-- ★追加：確定 集計 -->
+    <div class="sumBar" id="sumConfirmed">
+      <span class="sumPill"><strong>確定</strong></span>
+      <span class="sumPill">人数 <strong id="sumC_cnt">0</strong></span>
+      <span class="sumPill">割引合計 <strong id="sumC_disc">0円</strong></span>
+      <span class="sumPill good">売上合計 <strong id="sumC_sales">0円</strong></span>
+      <span class="sumPill warn">未払い <strong id="sumC_unpaid">0</strong></span>
     </div>
 
     <div class="noteSex" id="sexWarn" style="display:none"></div>
@@ -285,6 +341,25 @@ h1{font-size:18px;margin:0}
   </div>
 </div>
 
+<!-- ★追加：カップル成立（ハート選択）モーダル -->
+<div class="modalBack heartModal" id="heartBack">
+  <div class="modal">
+    <div class="modalHd">
+      <div style="font-weight:900">カップル成立（ハート色を選択）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="meta" id="heartMeta">-</span>
+        <button class="btn" id="btnCloseHeart" type="button">閉じる</button>
+      </div>
+    </div>
+    <div class="modalBd">
+      <div class="heartGrid" id="heartGrid"></div>
+      <div class="hint" style="margin-top:10px">
+        ※「なし」を選ぶと成立マークを外します。
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
 const $ = id => document.getElementById(id);
@@ -294,6 +369,60 @@ let participantsRaw = [];
 let participants = [];     // 正規化＆重複排除後
 let customers = [];
 
+/* ===== ★追加：カップル成立（ハート色） ===== */
+const HEARTS = [
+  { key:"",        label:"なし", emoji:"♡" },
+  { key:"red",     label:"赤",   emoji:"❤️" },
+  { key:"pink",    label:"ピンク",emoji:"💗" },
+  { key:"purple",  label:"紫",   emoji:"💜" },
+  { key:"blue",    label:"青",   emoji:"💙" },
+  { key:"green",   label:"緑",   emoji:"💚" },
+  { key:"yellow",  label:"黄",   emoji:"💛" },
+];
+function heartEmoji(color){
+  const hit = HEARTS.find(x=>x.key===String(color||""));
+  return hit ? hit.emoji : "";
+}
+let heartTargetPid = "";
+function openHeartModal(pid){
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+  heartTargetPid = pid;
+  $("heartMeta").textContent = `${p.name||"-"}（${p.contact||"-"}）`;
+  $("heartBack").style.display="flex";
+  renderHeartGrid(p.coupleColor || "");
+}
+function closeHeartModal(){
+  $("heartBack").style.display="none";
+  heartTargetPid = "";
+}
+$("btnCloseHeart").onclick = closeHeartModal;
+$("heartBack").addEventListener("click",(e)=>{
+  if(e.target === $("heartBack")) closeHeartModal();
+});
+function renderHeartGrid(currentColor){
+  $("heartGrid").innerHTML = HEARTS.map(h=>{
+    const active = (String(h.key) === String(currentColor||""));
+    return `
+      <button class="heartBtn" type="button" data-heart="${h.key}">
+        <span style="font-size:18px">${h.emoji}</span>
+        <div style="text-align:left">
+          <div>${h.label}</div>
+          <small>${active ? "選択中" : " "}</small>
+        </div>
+      </button>
+    `;
+  }).join("");
+}
+$("heartGrid").addEventListener("click", async (e)=>{
+  const b = e.target.closest("button[data-heart]");
+  if(!b) return;
+  const color = b.dataset.heart || "";
+  if(!heartTargetPid) return;
+  await setCoupleColor(heartTargetPid, color);
+});
+
+/* ===== status表示 ===== */
 function setStatus(msg){ $("status").textContent = msg || "-"; }
 function setError(msg){ $("err").textContent = msg || ""; }
 function setEvStatus(msg){ $("evStatus").textContent = msg || "-"; }
@@ -365,7 +494,31 @@ function makePid(){
   return "pid_" + Math.random().toString(16).slice(2) + "_" + Date.now();
 }
 
-/* ★追加：表示用に電話の先頭0を補正（フロント側で確実に） */
+/* ===== ★追加：料金計算 ===== */
+function getSelectedEvent(){
+  const id = $("eventSel").value;
+  return events.find(e => String(e.id) === String(id));
+}
+function safeInt(v){
+  const n = Number(String(v ?? "").replace(/[^\d]/g,""));
+  return Number.isFinite(n) ? n : 0;
+}
+function fmtYen(n){
+  const x = Number(n||0);
+  return x.toLocaleString("ja-JP") + "円";
+}
+function getBasePriceFromEvent(gender){
+  const ev = getSelectedEvent() || {};
+  const m = ev.priceM ?? ev.malePrice ?? ev.mPrice ?? ev.m_fee ?? ev["男性料金"] ?? ev["男性参加費"];
+  const f = ev.priceF ?? ev.femalePrice ?? ev.fPrice ?? ev.f_fee ?? ev["女性料金"] ?? ev["女性参加費"];
+  const uni = ev.price ?? ev.fee ?? ev.basePrice ?? ev["基本料金"] ?? ev["参加費"];
+
+  const raw = (gender==="M" && m!=null) ? m : (gender==="F" && f!=null) ? f : uni;
+  const n = safeInt(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/* ★表示用に電話の先頭0を補正（フロント側で確実に） */
 function displayPhone(v){
   const d = normalizePhoneLike(v);
   if(!d) return "";
@@ -375,7 +528,7 @@ function displayPhone(v){
   return d.startsWith("0") ? d : d;
 }
 
-/* ★追加：連絡方法の正規化 */
+/* ★連絡方法の正規化 */
 function normalizeContactWay(v){
   const s = String(v??"").trim();
   if(!s) return "";
@@ -421,7 +574,6 @@ async function apiParticipantsDelete(pid){
     body: JSON.stringify({ action:"participants:delete", pid })
   });
 }
-/* ★追記：確定→予約に戻す（GASの participants:revert を使う） */
 async function apiParticipantsRevert(pid){
   await fetchJson(API_URL,{
     method:"POST",
@@ -440,7 +592,7 @@ function fmtDateJa(v){
 function escapeHtml(s){
   return String(s??"")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"\"").replaceAll("'","&#039;");
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 function buildEventSelect(){
   const sel = $("eventSel");
@@ -476,7 +628,6 @@ function tryAutoFillFromCustomers(){
   if(!$("pAge").value.trim() && hit.age) $("pAge").value = hit.age;
   if(!$("pContact").value.trim() && hit.contact) $("pContact").value = displayPhone(hit.contact);
 
-  // ★顧客マスタ側のフィールド名に合わせて複数候補で読込
   const cw = hit.contactWay ?? hit.contact_method ?? hit.contactMethod ?? hit.method ?? hit["連絡方法"] ?? hit["連絡手段"] ?? "";
   if(!$("pContactWay").value && cw) $("pContactWay").value = normalizeContactWay(cw);
 
@@ -492,14 +643,20 @@ function tryAutoFillFromCustomers(){
 function normalizeParticipants(raw){
   const list = raw.map(p=>{
     const pid = String(p.pid ?? p.participantId ?? p.id ?? "").trim();
+    const paidRaw = (p.paid ?? p.isPaid ?? p.payment ?? p["支払い"] ?? "");
+    const paidStr = String(paidRaw ?? "").trim().toLowerCase();
+    const paid = paidStr==="true" || paidStr==="1" || paidStr==="済" || paidStr==="paid";
+
     return {
       ...p,
       pid,
       gender: normalizeGender(p.gender),
       status: normalizeStatus(p.status),
       contact: displayPhone(p.contact),
-      // ★追加：連絡方法
       contactWay: normalizeContactWay(p.contactWay ?? p.contact_method ?? p.contactMethod ?? p.method ?? p["連絡方法"] ?? p["連絡手段"] ?? ""),
+      coupleColor: String(p.coupleColor ?? p.couple ?? p.heartColor ?? p.heart ?? "").trim(),
+      discountYen: safeInt(p.discountYen ?? p.discount ?? p.discount_yen ?? p.discountAmount ?? p["割引"] ?? p["割引（円）"] ?? 0),
+      paid,
       updatedAt: p.updatedAt || p.ts || p.timestamp || "",
       createdAt: p.createdAt || ""
     };
@@ -518,6 +675,119 @@ function normalizeParticipants(raw){
     map[key] = (tb >= ta) ? x : a;
   }
   return [...Object.values(map), ...noPid];
+}
+
+/* ===== ★追加：カップル成立色の保存 ===== */
+async function setCoupleColor(pid, color){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+
+  setError("");
+  try{
+    setStatus("成立マーク保存中…");
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: normalizeStatus(p.status),
+      coupleColor: color || "",
+      discountYen: safeInt(p.discountYen || 0),
+      paid: !!p.paid,
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+    setStatus("成立マークを保存しました");
+    renderReservations();
+    renderConfirmed();
+    closeHeartModal();
+  }catch(err){
+    setStatus("-");
+    setError("成立マークの保存に失敗： " + (err.message || err));
+  }
+}
+
+/* ===== ★追加：割引（円）の保存（入力→即保存） ===== */
+async function setDiscountYen(pid, discountYen){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+
+  const d = Math.max(0, safeInt(discountYen));
+
+  setError("");
+  try{
+    setStatus("割引を保存中…");
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: normalizeStatus(p.status),
+      coupleColor: p.coupleColor || "",
+      discountYen: d,
+      paid: !!p.paid,
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+    setStatus("割引を保存しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("割引の保存に失敗： " + (err.message || err));
+  }
+}
+
+/* ===== ★追加：支払いトグル（未/済） ===== */
+async function togglePaid(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+
+  const next = !Boolean(p.paid);
+
+  setError("");
+  try{
+    setStatus("支払い状態を保存中…");
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: normalizeStatus(p.status),
+      coupleColor: p.coupleColor || "",
+      discountYen: safeInt(p.discountYen || 0),
+      paid: next,
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+    setStatus("支払い状態を保存しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("支払い保存に失敗： " + (err.message || err));
+  }
 }
 
 /* ===== 参加者一覧（確定のみ） ===== */
@@ -541,21 +811,44 @@ function renderConfirmed(){
   $("cntM").textContent = `${men.length}名`;
   $("cntF").textContent = `${women.length}名`;
 
-  const mk = (p, sex)=>`
-    <div class="pCard ${sex}">
-      <div>
-        <div class="pName">${escapeHtml(p.name||"-")}</div>
-        <div class="pMeta">
-          年齢:${escapeHtml(p.age||"-")}
-          ｜連絡先:${escapeHtml(p.contact||"-")}
-          ｜連絡方法:${escapeHtml(p.contactWay||"-")}
+  const mk = (p, sex)=>{
+    const heart = heartEmoji(p.coupleColor);
+    const base = getBasePriceFromEvent(normalizeGender(p.gender));
+    const disc = safeInt(p.discountYen);
+    const fee  = Math.max(0, base - disc);
+
+    const payBadge = p.paid
+      ? `<span class="payBadge paid">✅支払済</span>`
+      : `<span class="payBadge unpaid">💰未払い</span>`;
+
+    return `
+      <div class="pCard ${sex}">
+        <div>
+          <div class="pName">
+            <span>${escapeHtml(p.name||"-")}</span>
+            ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
+            ${payBadge}
+          </div>
+          <div class="pMeta">
+            年齢:${escapeHtml(p.age||"-")}
+            ｜連絡先:${escapeHtml(p.contact||"-")}
+            ｜連絡方法:${escapeHtml(p.contactWay||"-")}
+          </div>
+          <div class="priceRow">
+            <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
+            <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
+            <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+          </div>
+        </div>
+        <div class="pActions">
+          ${p.pid ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(safeInt(p.discountYen)||0))}" data-discount="${escapeHtml(p.pid)}">` : ``}
+          ${p.pid ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>` : ``}
+          ${p.pid ? `<button class="btn" data-heart-open="${escapeHtml(p.pid)}" type="button">💖成立</button>` : ``}
+          ${p.pid ? `<button class="btn danger" data-del-confirm="${escapeHtml(p.pid)}" type="button">予約に戻す</button>` : ``}
         </div>
       </div>
-      <div class="pActions">
-        ${p.pid ? `<button class="btn danger" data-del-confirm="${escapeHtml(p.pid)}">予約に戻す</button>` : ``}
-      </div>
-    </div>
-  `;
+    `;
+  };
 
   $("listM").innerHTML = men.length ? men.map(p=>mk(p,"male")).join("") : `<div class="meta">参加者がいません</div>`;
   $("listF").innerHTML = women.length ? women.map(p=>mk(p,"female")).join("") : `<div class="meta">参加者がいません</div>`;
@@ -568,6 +861,20 @@ function renderConfirmed(){
     sexWarn.style.display = "none";
     sexWarn.textContent = "";
   }
+
+  // ★追加：集計（確定）
+  const discSum = (arr)=>arr.reduce((a,x)=>a+safeInt(x.discountYen),0);
+  const feeSum  = (arr)=>arr.reduce((a,x)=>{
+    const b = getBasePriceFromEvent(normalizeGender(x.gender));
+    const d = safeInt(x.discountYen);
+    return a + Math.max(0, b-d);
+  },0);
+  const unpaidCount = filtered.filter(x=>!x.paid).length;
+
+  $("sumC_cnt").textContent   = String(filtered.length);
+  $("sumC_disc").textContent  = fmtYen(discSum(filtered));
+  $("sumC_sales").textContent = fmtYen(feeSum(filtered));
+  $("sumC_unpaid").textContent= String(unpaidCount);
 }
 
 /* ===== 予約一覧（モーダル） ===== */
@@ -593,17 +900,40 @@ $("resBody").addEventListener("click", (e)=>{
   if(!btn) return;
   if(btn.dataset.confirm) confirmParticipant(btn.dataset.confirm);
   if(btn.dataset.del) deleteReserved(btn.dataset.del);
+  if(btn.dataset.heartOpen) openHeartModal(btn.dataset.heartOpen);
+  if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
 });
 $("listM").addEventListener("click", (e)=>{
   const btn = e.target.closest("button");
   if(!btn) return;
   if(btn.dataset.delConfirm) revertConfirmedToReserved(btn.dataset.delConfirm);
+  if(btn.dataset.heartOpen) openHeartModal(btn.dataset.heartOpen);
+  if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
 });
 $("listF").addEventListener("click", (e)=>{
   const btn = e.target.closest("button");
   if(!btn) return;
   if(btn.dataset.delConfirm) revertConfirmedToReserved(btn.dataset.delConfirm);
+  if(btn.dataset.heartOpen) openHeartModal(btn.dataset.heartOpen);
+  if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
 });
+
+/* ★割引 input は change/blur で即保存（委譲） */
+function bindDiscountInputDelegation(container){
+  container.addEventListener("change", (e)=>{
+    const inp = e.target.closest("input[data-discount]");
+    if(!inp) return;
+    setDiscountYen(inp.dataset.discount, inp.value);
+  });
+  container.addEventListener("blur", (e)=>{
+    const inp = e.target.closest("input[data-discount]");
+    if(!inp) return;
+    setDiscountYen(inp.dataset.discount, inp.value);
+  }, true);
+}
+bindDiscountInputDelegation($("resBody"));
+bindDiscountInputDelegation($("listM"));
+bindDiscountInputDelegation($("listF"));
 
 async function confirmParticipant(pid){
   const eventId = $("eventSel").value;
@@ -629,6 +959,9 @@ async function confirmParticipant(pid){
       contactWay: normalizeContactWay(p.contactWay || ""),
       memo: p.memo || "",
       status: "confirmed",
+      coupleColor: p.coupleColor || "",
+      discountYen: safeInt(p.discountYen || 0),
+      paid: !!p.paid,
       updatedAt: nowIso()
     });
 
@@ -664,7 +997,6 @@ async function deleteReserved(pid){
   }
 }
 
-/* ★変更：確定者の「削除」は完全削除ではなく、GASの participants:revert を使って予約に戻す */
 async function revertConfirmedToReserved(pid){
   const eventId = $("eventSel").value;
   if(!eventId) return;
@@ -709,6 +1041,12 @@ function renderReservations(){
       p.memo ? `メモ:${p.memo}` : ""
     ].filter(Boolean).join(" ｜ ");
 
+    const heart = heartEmoji(p.coupleColor);
+
+    const base = getBasePriceFromEvent(g);
+    const disc = safeInt(p.discountYen);
+    const fee  = Math.max(0, base - disc);
+
     const confirmBtn = p.pid
       ? `<button class="btn primary" data-confirm="${escapeHtml(p.pid)}" type="button">参加確定</button>`
       : `<span class="meta">pidなし（古い予約）</span>`;
@@ -717,13 +1055,43 @@ function renderReservations(){
       ? `<button class="btn danger" data-del="${escapeHtml(p.pid)}" type="button">削除</button>`
       : ``;
 
+    const heartBtn = p.pid
+      ? `<button class="btn" data-heart-open="${escapeHtml(p.pid)}" type="button">💖成立</button>`
+      : ``;
+
+    const discInput = p.pid
+      ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(safeInt(p.discountYen)||0))}" data-discount="${escapeHtml(p.pid)}">`
+      : ``;
+
+    const paidBtn = p.pid
+      ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>`
+      : ``;
+
+    const payBadge = p.paid
+      ? `<span class="payBadge paid">✅支払済</span>`
+      : `<span class="payBadge unpaid">💰未払い</span>`;
+
     return `
       <div class="rCard">
         <div>
-          <div class="rTitle">${escapeHtml(p.name||"-")}</div>
-          <div class="rMeta">${escapeHtml(meta)}</div>
+          <div class="rTitle">
+            <span>${escapeHtml(p.name||"-")}</span>
+            ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
+            ${payBadge}
+          </div>
+          <div class="rMeta">
+            ${escapeHtml(meta)}
+            <div class="priceRow">
+              <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
+              <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
+              <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+            </div>
+          </div>
         </div>
         <div class="rActions">
+          ${discInput}
+          ${paidBtn}
+          ${heartBtn}
           ${confirmBtn}
           ${delBtn}
         </div>
@@ -768,6 +1136,9 @@ $("btnSave").onclick = async ()=>{
       contactWay: normalizeContactWay($("pContactWay").value),
       memo: $("pMemo").value.trim(),
       status: "reserved",
+      coupleColor: "",
+      discountYen: 0,
+      paid: false,            // ★追加：支払い初期値
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -797,10 +1168,12 @@ $("eventSel").addEventListener("change", async ()=>{
       participants = [];
       renderConfirmed();
       $("cntR").textContent = "0";
+      renderReservations();
       return;
     }
     await reloadParticipants(eventId);
     renderConfirmed();
+    renderReservations();
   }catch(err){
     setEvStatus("-");
     setError("参加者の読み込みに失敗： " + (err.message || err));
@@ -810,8 +1183,50 @@ $("eventSel").addEventListener("change", async ()=>{
 $("pName").addEventListener("input", scheduleAutoFill);
 $("pContact").addEventListener("input", scheduleAutoFill);
 
-/* ★追記：連絡方法を変更したらオートバッジ表示状態を維持したい場合のため（軽い再判定） */
 $("pContactWay").addEventListener("change", ()=>{ showAutoBadge($("autoBadge").style.display !== "none"); });
+
+/* ===== ★追加：CSV出力（確定） ===== */
+function toCsv(rows){
+  const esc = (v)=>('"'+String(v??"").replaceAll('"','""')+'"');
+  return rows.map(r=>r.map(esc).join(",")).join("\n");
+}
+function downloadText(filename, text){
+  const blob = new Blob([text], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+}
+$("btnCsvConfirmed").onclick = ()=>{
+  const ev = getSelectedEvent() || {};
+  const eventTitle = (ev.title||ev.name||"event").replace(/[\\\/:*?"<>|]/g,"_");
+  const rows = participants
+    .filter(p=>normalizeStatus(p.status)==="confirmed")
+    .map(p=>{
+      const g = normalizeGender(p.gender);
+      const base = getBasePriceFromEvent(g);
+      const disc = safeInt(p.discountYen);
+      const fee  = Math.max(0, base-disc);
+      return [
+        p.name||"",
+        g==="M"?"男性":g==="F"?"女性":"未設定",
+        p.age||"",
+        p.contact||"",
+        p.contactWay||"",
+        disc,
+        fee,
+        p.paid ? "済" : "未",
+        p.memo||""
+      ];
+    });
+
+  const header = [["名前","性別","年齢","連絡先","連絡方法","割引(円)","参加費(円)","支払い","メモ"]];
+  const csv = toCsv([...header, ...rows]);
+  downloadText(`確定_${eventTitle}.csv`, csv);
+};
 
 /* ===== 読み込み ===== */
 async function reloadParticipants(eventId){
