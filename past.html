@@ -71,6 +71,12 @@ h1{font-size:18px;margin:0}
 .item .subline{font-size:12px;color:var(--muted);margin-top:4px}
 .actions{display:flex;gap:6px;flex-wrap:wrap}
 
+/* ✅ 中止イベントの見た目（グレーアウト） */
+.item.canceled{
+  opacity:.55;
+  filter:grayscale(1);
+}
+
 /* right panel */
 .sideEmpty{
   padding:18px;
@@ -86,6 +92,9 @@ h1{font-size:18px;margin:0}
   border:1px solid var(--line);background:#fff;color:var(--muted);
 }
 .badge.ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08);color:#065f46}
+/* ✅ 中止バッジ */
+.badge.cancel{border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:#991b1b}
+
 .pList{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .pItem{
   border:1px solid var(--line);
@@ -316,6 +325,11 @@ function escapeHtml(s){
 }
 function pad2(n){return String(n).padStart(2,"0")}
 
+/* ✅ 中止判定（admin と揃える） */
+function isCanceled(e){
+  return e?.status === "canceled" || e?.isCanceled === true || e?.canceled === "1";
+}
+
 /* ========= 日付処理（完全対応） ========= */
 function parseDateFlex(v){
   if(v===null||v===undefined||v==="") return null;
@@ -382,12 +396,7 @@ function normalizeEvent(e){
   return {title,date,time,timeFrom,timeTo,place,note};
 }
 
-/* ========= ハート（カップル成立） =========
-  参加者データに以下のどれかが入っている想定で「なるべく拾う」実装です：
-  - coupleColor / heartColor / color : "red" "pink" "blue" など / 「赤」「ピンク」など
-  - coupleNo / coupleId : 1,2,3...
-  - isCouple / matched : true
-*/
+/* ========= ハート（カップル成立） ========= */
 const HEARTS = ["❤️","🧡","💛","💚","💙","💜","🩷","🤎","🖤"];
 
 /* ★追記：日本語→英語トークン変換 */
@@ -412,18 +421,13 @@ function normalizeColorToken_(s){
   if(map[v] !== undefined) return map[v];
   return v.toLowerCase();
 }
-
 function pickHeartColorToken(p){
-  // ★変更：日本語も拾って正規化
   const raw = (p.coupleColor ?? p.heartColor ?? p.color ?? "");
   return normalizeColorToken_(raw);
 }
-
 function colorToHeart(token){
-  // 色名 → ハート
   const t = normalizeColorToken_(token);
-  if(!t) return ""; // 「なし」はここで空
-
+  if(!t) return "";
   if(t.includes("red")) return "❤️";
   if(t.includes("orange")) return "🧡";
   if(t.includes("yellow")) return "💛";
@@ -433,15 +437,12 @@ function colorToHeart(token){
   if(t.includes("pink")) return "🩷";
   if(t.includes("brown")) return "🤎";
   if(t.includes("black")) return "🖤";
-
-  // hexっぽい場合は、番号でざっくり割り当て
   if(/^#?[0-9a-f]{6}$/i.test(t)){
     const n = parseInt(t.replace("#","").slice(-2),16);
     return HEARTS[n % HEARTS.length];
   }
   return "";
 }
-
 function coupleHeart(p){
   const token = pickHeartColorToken(p);
   if(token){
@@ -451,10 +452,9 @@ function coupleHeart(p){
   const no = (p.coupleNo ?? p.coupleId ?? p.couple ?? p.matchNo);
   const n = Number(no);
   if(!isNaN(n) && n>0) return HEARTS[(n-1) % HEARTS.length];
-
   const flag = p.isCouple ?? p.matched ?? p.isMatched ?? "";
   if(flag === true || String(flag).toLowerCase()==="true" || String(flag)==="1"){
-    return "❤️"; // 不明なら赤
+    return "❤️";
   }
   return "";
 }
@@ -532,6 +532,7 @@ function participantLabel(p){
 function renderParticipantsPanel(ev, participants){
   const n = normalizeEvent(ev);
   const title = `${fmtJP(n.date)}｜${n.title}`;
+  const canceled = isCanceled(ev);
 
   const listHtml = (participants||[]).map(p=>{
     const pp = participantLabel(p);
@@ -565,7 +566,7 @@ function renderParticipantsPanel(ev, participants){
   const head = `
     <div class="sideHeader">
       <div>
-        <div class="sideTitle">${escapeHtml(title)}</div>
+        <div class="sideTitle">${escapeHtml(title)} ${canceled ? `<span class="badge cancel" style="margin-left:6px">中止</span>` : ``}</div>
         <div class="meta">${escapeHtml(n.time||"-")}・${escapeHtml(n.place||"-")}${n.note?("・"+escapeHtml(n.note)):""}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -640,13 +641,10 @@ $("btnEditSave").onclick = async ()=>{
   $("editErr").textContent = "";
   $("status").textContent = "保存中…";
 
-  // 元オブジェクトをベースに「必要なキーだけ」更新
   const ev = {...editingEvent};
 
-  // タイトル
   ev.title = ($("fTitle").value||"").trim();
 
-  // 日付（date / eventDate / startDate 互換）
   const dRaw = ($("fDate").value||"").trim();
   if(dRaw){
     ev.date = dRaw;
@@ -654,11 +652,9 @@ $("btnEditSave").onclick = async ()=>{
     ev.startDate = dRaw;
   }
 
-  // 時間
   ev.timeFrom = ($("fFrom").value||"").trim();
   ev.timeTo   = ($("fTo").value||"").trim();
 
-  // 互換（time）
   if(ev.timeFrom || ev.timeTo){
     ev.time = `${ev.timeFrom||""}${ev.timeTo?("〜"+ev.timeTo):"〜"}`;
   }
@@ -698,8 +694,10 @@ function render(){
   $("err").textContent = "";
 
   const q=($("q").value||"").toLowerCase();
+
+  // ✅ 「過去」または「中止」はここに出す
   const past = events
-    .filter(isPastEvent)
+    .filter(e => isPastEvent(e) || isCanceled(e))
     .filter(e=>{
       if(!q) return true;
       const n = normalizeEvent(e);
@@ -718,10 +716,13 @@ function render(){
   $("list").innerHTML=past.map(e=>{
     const n = normalizeEvent(e);
     const active = (selectedEventId && String(selectedEventId)===String(e.id)) ? "active" : "";
+    const canceled = isCanceled(e) ? "canceled" : "";
+    const cancelBadge = isCanceled(e) ? `<span class="badge cancel">中止</span>` : ``;
+
     return `
-      <div class="item ${active}" data-sel="${escapeHtml(e.id)}">
+      <div class="item ${active} ${canceled}" data-sel="${escapeHtml(e.id)}">
         <div style="min-width:220px">
-          <div class="title">${fmtJP(n.date)}｜${escapeHtml(n.title)}</div>
+          <div class="title">${fmtJP(n.date)}｜${escapeHtml(n.title)} ${cancelBadge}</div>
           <div class="subline">${escapeHtml(n.time||"-")}・${escapeHtml(n.place||"-")}${n.note?("・"+escapeHtml(n.note)):""}</div>
         </div>
         <div class="actions">
@@ -734,25 +735,20 @@ function render(){
     `;
   }).join("");
 
-  // 行クリックでも選択（参加者表示）
   document.querySelectorAll("[data-sel]").forEach(row=>{
     row.onclick = (ev)=>{
-      // ボタン押下は各ボタンに任せる
       if(ev.target && ev.target.closest("button")) return;
       selectEvent(row.dataset.sel);
     };
   });
 
-  // 参加者ボタン（右側更新）
   document.querySelectorAll("[data-viewp]").forEach(b=>{
     b.onclick = async ()=>{
       await selectEvent(b.dataset.viewp);
-      // 右半分ポップアップもすぐ開く
       openParticipantsPopup();
     };
   });
 
-  // 編集
   document.querySelectorAll("[data-edit]").forEach(b=>{
     b.onclick=()=>{
       const ev = events.find(x=>String(x.id)===String(b.dataset.edit));
@@ -761,7 +757,6 @@ function render(){
     };
   });
 
-  // コピー
   document.querySelectorAll("[data-copy]").forEach(b=>{
     b.onclick=async()=>{
       const src=events.find(x=>String(x.id)===String(b.dataset.copy));
@@ -791,7 +786,6 @@ function render(){
     };
   });
 
-  // 削除
   document.querySelectorAll("[data-del]").forEach(b=>{
     b.onclick=async()=>{
       if(!confirm("削除しますか？")) return;
@@ -817,7 +811,7 @@ function render(){
 /* ========= 選択イベント → 参加者取得 ========= */
 async function selectEvent(eventId, opt){
   selectedEventId = eventId;
-  render(); // ハイライト更新
+  render();
 
   const ev = events.find(x=>String(x.id)===String(eventId));
   if(!ev){
@@ -857,9 +851,8 @@ function openParticipantsPopup(){
   if(!ev) return;
 
   const n = normalizeEvent(ev);
-  const title = `参加者（${fmtJP(n.date)}｜${n.title}）`;
+  const title = `参加者（${fmtJP(n.date)}｜${n.title}${isCanceled(ev) ? "｜中止" : ""}）`;
 
-  // 右側カードと同じ内容をそのまま入れる
   const html = $("rightBody").innerHTML || "";
   openDrawer(title, html);
 }

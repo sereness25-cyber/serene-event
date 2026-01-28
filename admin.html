@@ -180,6 +180,12 @@ details.longText summary{
 }
 details.longText summary::-webkit-details-marker{display:none;}
 
+/* ✅ 中止イベント用（past.html でグレーアウトに使える） */
+.evItem.canceled{
+  opacity:.55;
+  filter:grayscale(1);
+}
+
 /* モーダル */
 .modalBack{
   position:fixed;inset:0;background:rgba(15,23,42,.35);
@@ -233,7 +239,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
     <a class="btn" id="linkCustomers" href="./customers/customers.html">顧客マスタ</a>
 
     <button class="btn" id="btnReload" type="button">更新</button>
-
     <button class="btn primary" id="btnNew" type="button">新規登録</button>
 
     <!-- ★バックアップ/復元 -->
@@ -436,6 +441,11 @@ async function apiDelete(id){
     headers:{ "Content-Type":"text/plain;charset=utf-8" },
     body: JSON.stringify({ action:"delete", id })
   });
+}
+
+/* ✅ 中止判定（過去ページでも同じ関数を使える） */
+function isCanceled(ev){
+  return ev?.status === "canceled" || ev?.isCanceled === true || ev?.canceled === "1";
 }
 
 /* ===== 遷移（クリックでも確実に飛ばす） ===== */
@@ -720,12 +730,15 @@ function render(){
   // ✅ 開催日が近い順に自動ソート
   const sorted = [...events].sort(sortBySoonest);
 
+  // ✅ 現行一覧は「中止」は除外（＝過去イベント側へ）
+  const currentOnly = sorted.filter(e => !isCanceled(e));
+
   const list = q
-    ? sorted.filter(e=>{
+    ? currentOnly.filter(e=>{
         const s = `${e.title||""} ${e.place||""} ${e.note||""} ${e.summary||e.memo||""} ${e.target||""} ${e.payMethod||e.pay||""} ${e.deadline||""} ${e.cancelPolicy||""}`.toLowerCase();
         return s.includes(q.toLowerCase());
       })
-    : sorted;
+    : currentOnly;
 
   $("count").textContent = `表示 ${list.length}件 / 全${events.length}件`;
 
@@ -801,6 +814,7 @@ function render(){
           <div class="evBodyActions">
             <button class="btn" data-edit="${escapeHtml(e.id)}" type="button">編集</button>
             <button class="btn" data-copy="${escapeHtml(e.id)}" type="button">コピー</button>
+            <button class="btn danger" data-cancel="${escapeHtml(e.id)}" type="button">中止</button>
           </div>
         </div>
       </div>
@@ -837,6 +851,36 @@ function render(){
       $("cancelPolicy").value = ev.cancelPolicy || "";
     };
   });
+
+  // ✅ 中止ボタン
+  document.querySelectorAll("[data-cancel]").forEach(b=>{
+  b.onclick = async ()=>{
+    const ev = events.find(x=>String(x.id)===String(b.dataset.cancel));
+    if(!ev) return;
+
+    if(!confirm(
+      "このイベントを中止します。\n" +
+      "中止すると通常一覧から消え、過去イベントに移動します。\n\n" +
+      "実行しますか？"
+    )) return;
+
+    try{
+      setError("");
+
+      await apiUpsert({
+  ...ev,
+  status: "canceled"
+});
+
+      await refreshList(); // ★必ず再取得
+      alert("イベントを中止しました");
+
+    }catch(err){
+      setError("中止に失敗：" + (err.message || err));
+    }
+  };
+});
+
 }
 
 $("q").oninput = render;
