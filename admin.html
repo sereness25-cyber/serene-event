@@ -109,6 +109,77 @@ details[open] .evChevron{transform:rotate(180deg);}
 .evBodyLeft{min-width:260px;flex:1}
 .evBodyActions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
 
+/* ✅ 文字を見やすく整理（追記） */
+.evMetaLine{
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.6;
+  margin-top:6px;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 10px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:#fafbff;
+  color:#334155;
+  font-size:12px;
+  white-space:nowrap;
+}
+.badge.pri{ border-color:rgba(79,124,255,.25); background:rgba(79,124,255,.08); color:#1f3b8f; }
+.badge.ok{ border-color:rgba(45,212,191,.35); background:rgba(45,212,191,.10); color:#0f766e; }
+
+.evSections{ margin-top:10px; display:flex; flex-direction:column; gap:10px; }
+.box{
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:12px;
+  padding:10px 12px;
+}
+.boxTitle{
+  font-size:12px;
+  color:var(--muted);
+  font-weight:800;
+  margin:0 0 6px 0;
+  letter-spacing:.02em;
+}
+.boxText{
+  font-size:13px;
+  line-height:1.7;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+.kv{
+  display:grid;
+  grid-template-columns:88px 1fr;
+  gap:6px 10px;
+  font-size:13px;
+  line-height:1.65;
+}
+.kv .k{ color:var(--muted); font-weight:700; }
+.kv .v{ color:var(--text); }
+
+.clamp{
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+details.longText summary{
+  cursor:pointer;
+  list-style:none;
+  color:var(--pri);
+  font-weight:800;
+  font-size:12px;
+  margin-top:6px;
+}
+details.longText summary::-webkit-details-marker{display:none;}
+
 /* モーダル */
 .modalBack{
   position:fixed;inset:0;background:rgba(15,23,42,.35);
@@ -231,7 +302,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
           <input class="field" id="priceF" inputmode="numeric" placeholder="例）500">
         </div>
 
-        <!-- ✅ メモ欄は削除：写真の“概要”欄をメモ相当として使う -->
         <div style="grid-column:1 / -1">
           <div class="fieldLabel">概要</div>
           <textarea class="field" id="summary" placeholder="例）初参加歓迎。少人数でゆっくり会話。"></textarea>
@@ -384,7 +454,14 @@ function normalizeTimeField(id){
 function toDateSafe(dateStr, timeStr){
   if(!dateStr) return null;
   const s = String(dateStr).trim().replaceAll("/", "-");
-  const t = (timeStr && String(timeStr).includes(":")) ? String(timeStr).trim() : "00:00";
+
+  // timeStr が "10:00〜12:00" などでも先頭だけ拾う
+  let t = (timeStr && String(timeStr).includes(":")) ? String(timeStr).trim() : "00:00";
+  if(t.includes("〜") || t.includes("-") || t.includes("–")){
+    const first = t.split("〜")[0].split("-")[0].split("–")[0].trim();
+    if(first) t = first;
+  }
+
   const d = new Date(`${s}T${t}:00`);
   if (isNaN(d.getTime())) return null;
   return d;
@@ -418,10 +495,8 @@ function openModal(mode, ev){
     $("priceF").value="";
     $("note").value="";
 
-    // ✅ 概要（メモ相当）
     $("summary").value="";
 
-    // 追加項目
     $("deadline").value="";
     $("target").value="";
     $("payMethod").value="";
@@ -444,7 +519,6 @@ function openModal(mode, ev){
     $("priceF").value=ev.priceF||"";
     $("note").value=ev.note||"";
 
-    // ✅ 概要（メモ相当）
     $("summary").value = ev.summary || ev.memo || "";
 
     $("deadline").value = toDateValue(ev.deadline);
@@ -502,7 +576,7 @@ function isSoonEvent(ev){
 function render(){
   const q = $("q").value.trim();
 
-  // ✅ 開催日が近い順に自動ソート（まず全体をソート）
+  // ✅ 開催日が近い順に自動ソート
   const sorted = [...events].sort(sortBySoonest);
 
   const list = q
@@ -527,17 +601,19 @@ function render(){
     const summaryTxt = String(e.summary || e.memo || "").trim();
 
     const openAttr = (AUTO_OPEN_SOON_EVENTS && isSoonEvent(e)) ? " open" : "";
+    const isLong = summaryTxt.length > 140 || summaryTxt.split("\n").length >= 4;
 
     return `
     <details class="evItem"${openAttr}>
       <summary class="evSum">
         <div class="evHead">
           <div class="title">${escapeHtml(fmtDateJa(e.date))}｜${escapeHtml(e.title||"-")}</div>
-          <div class="subline">
-            ${escapeHtml(e.timeFrom||"-")}-${escapeHtml(e.timeTo||"-")}
-            ・ 料金(男性) ${escapeHtml(fmtMoney(e.priceM))}
-            ・ 料金(女性) ${escapeHtml(fmtMoney(e.priceF))}
-            ${e.note ? " ・ " + escapeHtml(e.note) : ""}
+
+          <div class="evMetaLine">
+            <span class="badge pri">🕒 ${escapeHtml(e.timeFrom||"-")}〜${escapeHtml(e.timeTo||"-")}</span>
+            <span class="badge">💰 男 ${escapeHtml(fmtMoney(e.priceM))} / 女 ${escapeHtml(fmtMoney(e.priceF))}</span>
+            ${e.place ? `<span class="badge ok">📍 ${escapeHtml(e.place)}</span>` : ``}
+            ${e.note ? `<span class="badge">🏷️ ${escapeHtml(e.note)}</span>` : ``}
           </div>
         </div>
         <div class="evChevron">▼</div>
@@ -546,13 +622,39 @@ function render(){
       <div class="evBody">
         <div class="evBodyInner">
           <div class="evBodyLeft">
-            <div class="subline">
-              ${summaryTxt ? "概要：" + escapeHtml(summaryTxt) : "概要：-"}
-              ${deadlineTxt ? "<br>〆切：" + escapeHtml(deadlineTxt) : ""}
-              ${targetTxt ? "<br>対象：" + escapeHtml(targetTxt) : ""}
-              ${payTxt ? "<br>支払：" + escapeHtml(payTxt) : ""}
-              ${cancelTxt ? "<br>キャンセル：" + escapeHtml(cancelTxt) : ""}
+
+            <div class="evSections">
+              <div class="box">
+                <p class="boxTitle">概要</p>
+                ${
+                  !summaryTxt
+                    ? `<div class="boxText" style="color:var(--muted)">未設定</div>`
+                    : (
+                        !isLong
+                          ? `<div class="boxText">${escapeHtml(summaryTxt)}</div>`
+                          : `
+                            <div class="boxText clamp">${escapeHtml(summaryTxt)}</div>
+                            <details class="longText">
+                              <summary>全文を表示</summary>
+                              <div class="boxText" style="margin-top:8px">${escapeHtml(summaryTxt)}</div>
+                            </details>
+                          `
+                      )
+                }
+              </div>
+
+              <div class="box">
+                <p class="boxTitle">条件</p>
+                <div class="kv">
+                  ${deadlineTxt ? `<div class="k">〆切</div><div class="v">${escapeHtml(deadlineTxt)}</div>` : ``}
+                  ${targetTxt ? `<div class="k">対象</div><div class="v">${escapeHtml(targetTxt)}</div>` : ``}
+                  ${payTxt ? `<div class="k">支払</div><div class="v">${escapeHtml(payTxt)}</div>` : ``}
+                  ${cancelTxt ? `<div class="k">キャンセル</div><div class="v">${escapeHtml(cancelTxt)}</div>` : ``}
+                  ${(!deadlineTxt && !targetTxt && !payTxt && !cancelTxt) ? `<div class="v" style="grid-column:1/-1;color:var(--muted)">未設定</div>` : ``}
+                </div>
+              </div>
             </div>
+
           </div>
 
           <div class="evBodyActions">
@@ -586,7 +688,6 @@ function render(){
       $("priceF").value = ev.priceF||"";
       $("note").value = ev.note||"";
 
-      // ✅ 概要（メモ相当）をコピー
       $("summary").value = ev.summary || ev.memo || "";
 
       $("deadline").value = toDateValue(ev.deadline);
@@ -603,7 +704,7 @@ $("q").oninput = render;
 async function refreshList(){
   events = await apiList();
 
-  // ✅ ここでも念のためソートして保持（検索無しでも常に近い順）
+  // ✅ 常に近い順で保持
   events.sort(sortBySoonest);
 
   $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
@@ -637,7 +738,6 @@ $("btnSave").onclick = async ()=>{
       priceF: $("priceF").value.trim(),
       note: $("note").value.trim(),
 
-      // ✅ 概要（メモ相当）
       summary: $("summary").value.trim(),
 
       deadline: $("deadline").value || "",
