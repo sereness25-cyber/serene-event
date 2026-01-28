@@ -233,7 +233,12 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
     <a class="btn" id="linkCustomers" href="./customers/customers.html">顧客マスタ</a>
 
     <button class="btn" id="btnReload" type="button">更新</button>
+
     <button class="btn primary" id="btnNew" type="button">新規登録</button>
+
+    <!-- ★バックアップ/復元 -->
+    <button class="btn" id="btnBackup" type="button">バックアップ</button>
+    <button class="btn danger" id="btnRestore" type="button">復元</button>
   </div>
 </header>
 
@@ -339,6 +344,47 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
   </div>
 </div>
 
+<!-- ===== 復元モーダル ===== -->
+<div class="modalBack" id="restoreBack" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modalHd">
+      <strong>バックアップから復元</strong>
+      <button class="btn" id="btnRestoreClose" type="button">閉じる</button>
+    </div>
+    <div class="modalBd">
+      <div class="meta" style="margin-bottom:10px">
+        DriveのバックアップJSONの <b>fileId</b> を入れて復元します。<br>
+        <span style="color:#b91c1c;font-weight:700">replace は全上書き</span> なので注意。
+      </div>
+
+      <div class="fieldLabel">Drive fileId（必須）</div>
+      <input class="field" id="restoreFileId" placeholder="例）1AbcDEFgHiJkLmnOPq..." autocomplete="off">
+
+      <div style="height:10px"></div>
+
+      <div class="fieldLabel">復元モード</div>
+      <select class="field" id="restoreMode">
+        <option value="replace">replace（全上書き）</option>
+        <option value="merge">merge（追記）</option>
+      </select>
+
+      <div style="height:10px"></div>
+
+      <div class="fieldLabel">確認（RESTORE と入力）</div>
+      <input class="field" id="restoreConfirm" placeholder="RESTORE" autocomplete="off">
+
+      <hr class="sep">
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn danger" id="btnRestoreRun" type="button">復元を実行</button>
+        <span class="meta" id="restoreStatus">-</span>
+      </div>
+
+      <div class="err" id="restoreErr" style="margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ★あなたの /exec に固定 */
 const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
@@ -360,6 +406,22 @@ async function fetchJson(url, opt){
 async function apiList(){
   const j = await fetchJson(API_URL + "?action=list");
   return j.events || [];
+}
+async function apiBackupAll(note){
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"backup:all", note: note || "" })
+  });
+  return j.backup;
+}
+async function apiRestoreAll(fileId, mode){
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"restore:all", fileId, mode })
+  });
+  return j;
 }
 async function apiUpsert(ev){
   await fetchJson(API_URL,{
@@ -540,6 +602,85 @@ $("modalBack").addEventListener("click",(e)=>{
 
 $("btnNew").onclick = ()=> openModal("new");
 $("btnReload").onclick = ()=> location.reload();
+
+/* ===== バックアップ / 復元 ===== */
+function setRestoreError(msg){ $("restoreErr").textContent = msg || ""; }
+function setRestoreStatus(msg){ $("restoreStatus").textContent = msg || "-"; }
+
+function openRestoreModal(){
+  $("restoreBack").style.display="flex";
+  $("restoreBack").setAttribute("aria-hidden","false");
+  $("restoreFileId").value = "";
+  $("restoreMode").value = "replace";
+  $("restoreConfirm").value = "";
+  setRestoreStatus("-");
+  setRestoreError("");
+}
+function closeRestoreModal(){
+  $("restoreBack").style.display="none";
+  $("restoreBack").setAttribute("aria-hidden","true");
+}
+
+$("btnBackup").onclick = async ()=>{
+  setError("");
+  try{
+    const note = prompt("バックアップメモ（任意）", "") || "";
+    if(!confirm("全データをバックアップしてDriveに保存します。よろしいですか？")) return;
+
+    $("btnBackup").disabled = true;
+    $("btnBackup").textContent = "バックアップ中…";
+
+    const b = await apiBackupAll(note);
+
+    alert(`✅ バックアップ完了\n${b.name}\n\nDriveで開きます`);
+    try{ window.open(b.url, "_blank", "noopener"); }catch(_){}
+  }catch(err){
+    setError("バックアップに失敗： " + (err.message || err));
+  }finally{
+    $("btnBackup").disabled = false;
+    $("btnBackup").textContent = "バックアップ";
+  }
+};
+
+$("btnRestore").onclick = ()=> openRestoreModal();
+$("btnRestoreClose").onclick = closeRestoreModal;
+$("restoreBack").addEventListener("click",(e)=>{
+  if(e.target === $("restoreBack")) closeRestoreModal();
+});
+
+$("btnRestoreRun").onclick = async ()=>{
+  setRestoreError("");
+  try{
+    const fileId = $("restoreFileId").value.trim();
+    const mode = $("restoreMode").value;
+    const confirmText = $("restoreConfirm").value.trim();
+
+    if(!fileId){ setRestoreError("fileId を入力してください"); return; }
+    if(confirmText !== "RESTORE"){ setRestoreError("確認欄に RESTORE と入力してください"); return; }
+
+    if(mode === "replace"){
+      if(!confirm("replace（全上書き）で復元します。本当に実行しますか？")) return;
+    }else{
+      if(!confirm("merge（追記）で復元します。重複に注意。実行しますか？")) return;
+    }
+
+    setRestoreStatus("復元中…");
+    $("btnRestoreRun").disabled = true;
+
+    await apiRestoreAll(fileId, mode);
+
+    setRestoreStatus("復元完了。再読み込みします…");
+    await refreshList();
+
+    alert("復元が完了しました。");
+    closeRestoreModal();
+  }catch(err){
+    setRestoreStatus("-");
+    setRestoreError("復元に失敗： " + (err.message || err));
+  }finally{
+    $("btnRestoreRun").disabled = false;
+  }
+};
 
 function toDateValue(v){
   if(!v) return "";
