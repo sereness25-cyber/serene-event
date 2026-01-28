@@ -1,0 +1,1476 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>予約管理</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px; --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 60px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted)}
+
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 10px;border-radius:10px;cursor:pointer;
+  font-size:12px;
+  text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:6px;
+}
+.btn.primary{
+  background:linear-gradient(135deg,var(--pri),var(--pri2));
+  color:#fff;border:none;
+}
+.btn.danger{border-color:#fca5a5;color:#b91c1c}
+.input{
+  border:1px solid var(--line);
+  padding:10px 12px;
+  border-radius:12px;
+  width:100%;
+  background:#fff;
+  font-size:13px;
+}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:#b91c1c}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:900px){ .grid{grid-template-columns:1fr 1fr} }
+@media(max-width:520px){ .grid{grid-template-columns:1fr} }
+
+.badge{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:#fff}
+.badge.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.hint{font-size:12px;color:var(--muted);line-height:1.4}
+
+/* ===== 男女分割＋色分け（参加確定のみ） ===== */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:720px){ .split{grid-template-columns:1fr} }
+.box{border-radius:18px;padding:12px;box-shadow:var(--shadow);border:1px solid var(--line);}
+.box.male{background:#eff6ff;border-color:#bfdbfe;}
+.box.female{background:#fff1f2;border-color:#fecdd3;}
+.boxHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.boxHd .ttl{font-weight:900;font-size:14px}
+.boxHd .count{font-size:12px;font-weight:700;color:var(--muted)}
+.pCard{border-radius:14px;padding:10px;margin-bottom:8px;background:#fff;border:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pCard.male{ border-color:#dbeafe; }
+.pCard.female{ border-color:#ffe4e6; }
+.pName{font-weight:800; display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.pMeta{font-size:12px;color:var(--muted);margin-top:4px}
+.noteSex{font-size:12px;color:#b45309;margin-top:10px}
+.pActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ===== 追記：予約一覧ボタン（下） ===== */
+.bottomBar{
+  position:fixed;left:0; right:0; bottom:0;padding:10px;
+  background:rgba(246,247,251,.85);backdrop-filter: blur(8px);
+  border-top:1px solid var(--line);display:flex;justify-content:center;z-index:20;
+}
+.bottomBar .btnLike{
+  width:min(920px, calc(100% - 24px));
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:12px 14px;border-radius:999px;border:1px solid rgba(0,0,0,.08);
+  background:#fff;box-shadow:0 12px 36px rgba(15,23,42,.18);
+  cursor:pointer;font-weight:900;
+}
+
+/* ===== 追記：予約一覧モーダル ===== */
+.modalBack{position:fixed; inset:0;background:rgba(15,23,42,.35);display:none; align-items:center; justify-content:center;z-index:30;}
+.modal{width:min(860px, 96vw);max-height:86vh;background:#fff;border-radius:16px;box-shadow:0 18px 60px rgba(15,23,42,.25);overflow:hidden;display:flex;flex-direction:column;}
+.modalHd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.modalBd{padding:12px 14px;overflow:auto;}
+.rCard{
+  border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:10px;background:#fff;
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center
+}
+.rTitle{font-weight:900; display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.rMeta{font-size:12px;color:var(--muted);margin-top:4px}
+.rActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ===== ★追加：新規登録 折りたたみ ===== */
+.hdRow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
+.foldBtn{
+  border:1px solid var(--line);
+  background:#fff;
+  padding:6px 10px;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:12px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  user-select:none;
+}
+.foldBtn .chev{font-weight:900}
+.foldBody{display:block}
+.foldBody.isHidden{display:none}
+
+/* ===== ★追加：カップル成立（ハート選択）モーダル ===== */
+.heartModal .modal{width:min(520px, 92vw)}
+.heartGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:420px){ .heartGrid{grid-template-columns:1fr 1fr} }
+.heartBtn{
+  border:1px solid var(--line);
+  background:#fff;
+  padding:10px 12px;
+  border-radius:14px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:900;
+}
+.heartBtn small{font-weight:600;color:var(--muted)}
+
+/* ===== ★追加：料金表示＆割引入力 ===== */
+.priceRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.pill{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:#fff}
+.pill strong{font-weight:900}
+.smallInput{
+  width:110px;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  font-size:12px;
+}
+
+/* ===== ★追加：集計バー／支払いステータス／CSV ===== */
+.sumBar{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sumPill{
+  font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);
+  background:#fff;display:inline-flex;gap:6px;align-items:center
+}
+.sumPill strong{font-weight:900}
+.sumPill.good{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.sumPill.warn{border-color:#fed7aa;background:#fffbeb;color:#92400e}
+
+.payBadge{
+  font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);
+  background:#fff;display:inline-flex;align-items:center;gap:6px;font-weight:800
+}
+.payBadge.paid{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.payBadge.unpaid{border-color:#fecaca;background:#fff1f2;color:#9f1239}
+/* ===== サジェスト ===== */
+.suggest{
+  position:relative;
+  margin-top:6px;
+}
+.suggest .panel{
+  position:absolute;
+  left:0; right:0;
+  z-index:40;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:0 16px 40px rgba(15,23,42,.14);
+  overflow:hidden;
+}
+.suggest .item{
+  padding:10px 12px;
+  cursor:pointer;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+}
+.suggest .item:hover{ background:#f8fafc; }
+.suggest .main{ font-weight:800; font-size:13px; }
+.suggest .sub{ font-size:12px; color:var(--muted); }
+.suggest .tag{
+  font-size:11px;
+  padding:3px 8px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:#fff;
+  white-space:nowrap;
+}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <h1>参加者管理</h1>
+      <div class="sub">新規登録は「予約」→「参加確定」で参加者一覧に表示されます</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="btn" href="../admin.html">管理へ戻る</a>
+    <a class="btn" href="../customers/customers.html">顧客マスタ</a>
+  </div>
+</header>
+
+<section class="card">
+  <div class="hd">
+    <strong>イベント選択</strong>
+    <span class="meta" id="evStatus">-</span>
+    <span class="meta" id="loadedAt">-</span>
+  </div>
+  <div class="bd">
+    <select class="input" id="eventSel"></select>
+    <div class="hint" style="margin-top:8px">
+      ※イベントを選ぶと、「参加確定者」だけが下に表示されます。予約は下の「予約一覧」から確認できます。
+    </div>
+  </div>
+</section>
+
+<!-- ★新規登録カード（折りたたみ対応） -->
+<section class="card" style="margin-top:14px" id="newCard">
+  <div class="hd">
+    <div class="hdRow">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <strong>新規登録（まず予約に入る）</strong>
+        <span class="meta">名前 or 電話番号で顧客マスタから自動読込</span>
+        <span class="badge" id="autoBadge" style="display:none">自動読込</span>
+      </div>
+
+      <button class="foldBtn" id="btnToggleNew" type="button" aria-expanded="true">
+        <span class="chev" id="newChev">▲</span>
+        <span id="newFoldLabel">閉じる</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="bd foldBody" id="newBody">
+    <div class="grid">
+      <div>
+        <div class="meta" style="margin:0 0 6px">名前（必須）</div>
+        <input class="input" id="pName" type="search"
+  placeholder="例）山田 花子"
+  autocomplete="new-password"
+  autocorrect="off" autocapitalize="off" spellcheck="false"
+  inputmode="text"
+  readonly>
+        <div class="suggest" id="sugName" style="display:none"></div>
+      </div>
+
+      <div>
+        <div class="meta" style="margin:0 0 6px">性別 <span style="color:#ef4444;font-weight:700">※必須</span></div>
+        <select class="input" id="pGender">
+          <option value="">選択してください</option>
+          <option value="M">男性</option>
+          <option value="F">女性</option>
+        </select>
+        <div class="hint" style="margin-top:4px">※参加確定後に「男女別・色分け表示」されます</div>
+      </div>
+
+      <div>
+        <div class="meta" style="margin:0 0 6px">年齢</div>
+        <input class="input" id="pAge" placeholder="例）32" inputmode="numeric">
+      </div>
+
+      <div>
+        <div class="meta" style="margin:0 0 6px">電話/連絡先</div>
+        <input class="input" id="pContact" type="text"
+  placeholder="例）09012345678（先頭0もOK）"
+  inputmode="numeric"
+  autocomplete="new-password"
+  autocorrect="off" autocapitalize="off" spellcheck="false"
+  readonly>
+        <div class="suggest" id="sugPhone" style="display:none"></div>
+      </div>
+
+      <!-- ★追加：連絡方法 -->
+      <div>
+        <div class="meta" style="margin:0 0 6px">連絡方法</div>
+        <select class="input" id="pContactWay">
+          <option value="">未設定</option>
+          <option value="電話">電話</option>
+          <option value="SMS">SMS</option>
+          <option value="LINE">LINE</option>
+          <option value="メール">メール</option>
+          <option value="Instagram">Instagram</option>
+          <option value="Facebook">Facebook</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+
+      <div style="grid-column:1/-1">
+        <div class="meta" style="margin:0 0 6px">メモ（任意）</div>
+        <input class="input" id="pMemo" placeholder="例）紹介経由 / 次回案内OK">
+      </div>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" id="btnSave" type="button">予約として登録</button>
+      <button class="btn" id="btnClear" type="button">クリア</button>
+      <span class="meta" id="status">-</span>
+      <span class="err" id="err"></span>
+    </div>
+
+    <div class="hint" style="margin-top:10px">
+      ・新規登録は「予約一覧」に入ります。参加確定は予約一覧で行います。<br>
+      ・登録と同時に顧客マスタへも自動反映（GAS側の仕様）を想定。
+    </div>
+  </div>
+</section>
+
+<section class="card" style="margin-top:14px">
+  <div class="hd">
+    <strong>参加確定者（このイベント）</strong>
+    <input class="input" id="q" placeholder="検索（名前/連絡先/連絡方法）" style="max-width:260px">
+    <button class="btn" id="btnCsvConfirmed" type="button">⬇️ 確定CSV</button>
+    <span class="meta" id="count">-</span>
+  </div>
+  <div class="bd">
+    <div class="split">
+      <div class="box male">
+        <div class="boxHd">
+          <div class="ttl">👨 男性（確定）</div>
+          <div class="count" id="cntM">0名</div>
+        </div>
+        <div id="listM"></div>
+      </div>
+
+      <div class="box female">
+        <div class="boxHd">
+          <div class="ttl">👩 女性（確定）</div>
+          <div class="count" id="cntF">0名</div>
+        </div>
+        <div id="listF"></div>
+      </div>
+    </div>
+
+    <!-- ★追加：確定 集計 -->
+    <div class="sumBar" id="sumConfirmed">
+      <span class="sumPill"><strong>確定</strong></span>
+      <span class="sumPill">人数 <strong id="sumC_cnt">0</strong></span>
+      <span class="sumPill">割引合計 <strong id="sumC_disc">0円</strong></span>
+      <span class="sumPill good">売上合計 <strong id="sumC_sales">0円</strong></span>
+      <span class="sumPill warn">未払い <strong id="sumC_unpaid">0</strong></span>
+    </div>
+
+    <div class="noteSex" id="sexWarn" style="display:none"></div>
+  </div>
+</section>
+
+</div>
+
+<!-- 予約一覧ボタン（画面下固定） -->
+<div class="bottomBar">
+  <button class="btnLike" id="btnOpenRes" type="button">
+    📋 予約一覧を開く（<span id="cntR">0</span>件）
+  </button>
+</div>
+
+<!-- 予約一覧モーダル -->
+<div class="modalBack" id="resBack">
+  <div class="modal">
+    <div class="modalHd">
+      <div style="font-weight:900">予約一覧（このイベント）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="meta" id="resMeta">-</span>
+        <button class="btn" id="btnCloseRes" type="button">閉じる</button>
+      </div>
+    </div>
+    <div class="modalBd" id="resBody"></div>
+  </div>
+</div>
+
+<!-- ★追加：カップル成立（ハート選択）モーダル -->
+<div class="modalBack heartModal" id="heartBack">
+  <div class="modal">
+    <div class="modalHd">
+      <div style="font-weight:900">カップル成立（ハート色を選択）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="meta" id="heartMeta">-</span>
+        <button class="btn" id="btnCloseHeart" type="button">閉じる</button>
+      </div>
+    </div>
+    <div class="modalBd">
+      <div class="heartGrid" id="heartGrid"></div>
+      <div class="hint" style="margin-top:10px">
+        ※「なし」を選ぶと成立マークを外します。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
+const $ = id => document.getElementById(id);
+
+let events = [];
+let participantsRaw = [];
+let participants = [];     // 正規化＆重複排除後
+let customers = [];
+let loadSeq = 0; // ★読み込み競合防止用
+
+/* ===== ★追加：カップル成立（ハート色） ===== */
+const HEARTS = [
+  { key:"",        label:"なし", emoji:"" },
+  { key:"red",     label:"赤",   emoji:"❤️" },
+  { key:"pink",    label:"ピンク",emoji:"💗" },
+  { key:"purple",  label:"紫",   emoji:"💜" },
+  { key:"blue",    label:"青",   emoji:"💙" },
+  { key:"green",   label:"緑",   emoji:"💚" },
+  { key:"yellow",  label:"黄",   emoji:"💛" },
+];
+function heartEmoji(color){
+  const hit = HEARTS.find(x=>x.key===String(color||""));
+  return hit ? hit.emoji : "";
+}
+let heartTargetPid = "";
+function openHeartModal(pid){
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+  heartTargetPid = pid;
+  $("heartMeta").textContent = `${p.name||"-"}（${p.contact||"-"}）`;
+  $("heartBack").style.display="flex";
+  renderHeartGrid(p.coupleColor || "");
+}
+function closeHeartModal(){
+  $("heartBack").style.display="none";
+  heartTargetPid = "";
+}
+$("btnCloseHeart").onclick = closeHeartModal;
+$("heartBack").addEventListener("click",(e)=>{
+  if(e.target === $("heartBack")) closeHeartModal();
+});
+function renderHeartGrid(currentColor){
+  $("heartGrid").innerHTML = HEARTS.map(h=>{
+    const active = (String(h.key) === String(currentColor||""));
+    return `
+      <button class="heartBtn" type="button" data-heart="${h.key}">
+        <span style="font-size:18px">${h.emoji}</span>
+        <div style="text-align:left">
+          <div>${h.label}</div>
+          <small>${active ? "選択中" : " "}</small>
+        </div>
+      </button>
+    `;
+  }).join("");
+}
+$("heartGrid").addEventListener("click", async (e)=>{
+  const b = e.target.closest("button[data-heart]");
+  if(!b) return;
+  const color = b.dataset.heart || "";
+  if(!heartTargetPid) return;
+  await setCoupleColor(heartTargetPid, color);
+});
+
+/* ===== status表示 ===== */
+function setStatus(msg){ $("status").textContent = msg || "-"; }
+function setError(msg){ $("err").textContent = msg || ""; }
+function setEvStatus(msg){ $("evStatus").textContent = msg || "-"; }
+
+async function fetchJson(url, opt){
+  const res = await fetch(url, Object.assign({cache:"no-store"}, opt||{}));
+  const j = await res.json().catch(()=> ({}));
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+
+/* ===== ★追加：新規登録 折りたたみ（状態保存） ===== */
+const NEW_FOLD_KEY = "participants_newFold_v1";
+function setNewFold(isOpen){
+  const body = $("newBody");
+  const btn = $("btnToggleNew");
+  const chev = $("newChev");
+  const label = $("newFoldLabel");
+
+  if(isOpen){
+    body.classList.remove("isHidden");
+    btn.setAttribute("aria-expanded","true");
+    chev.textContent = "▲";
+    label.textContent = "閉じる";
+    localStorage.setItem(NEW_FOLD_KEY, "open");
+  }else{
+    body.classList.add("isHidden");
+    btn.setAttribute("aria-expanded","false");
+    chev.textContent = "▼";
+    label.textContent = "開く";
+    localStorage.setItem(NEW_FOLD_KEY, "closed");
+  }
+}
+function initNewFold(){
+  const saved = localStorage.getItem(NEW_FOLD_KEY);
+  const open = (saved !== "closed"); // 初期は開く
+  setNewFold(open);
+}
+$("btnToggleNew").onclick = ()=>{
+  const isOpen = $("btnToggleNew").getAttribute("aria-expanded") === "true";
+  setNewFold(!isOpen);
+};
+
+/* ===== normalize ===== */
+function zenkakuToHankakuNum(s){
+  return String(s??"").replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+}
+function normalizeName(s){
+  return String(s??"").trim().replace(/\s+/g," ").toLowerCase();
+}
+function normalizePhoneLike(s){
+  return zenkakuToHankakuNum(String(s??"")).replace(/[^\d]/g,"");
+}
+function normalizeGender(v){
+  const s = String(v??"").trim().toUpperCase();
+  if(s==="M" || s==="MALE" || s==="男" || s==="男性") return "M";
+  if(s==="F" || s==="FEMALE" || s==="女" || s==="女性") return "F";
+  return "";
+}
+function normalizeStatus(v){
+  const s = String(v??"").trim().toLowerCase();
+  if(s==="confirmed" || s==="ok" || s==="参加" || s==="確定") return "confirmed";
+  if(s==="reserved" || s==="reserve" || s==="予約") return "reserved";
+  return "reserved";
+}
+function nowIso(){ return new Date().toISOString(); }
+function makePid(){
+  if(window.crypto?.randomUUID) return crypto.randomUUID();
+  return "pid_" + Math.random().toString(16).slice(2) + "_" + Date.now();
+}
+
+/* ===== ★追加：料金計算 ===== */
+function getSelectedEvent(){
+  const id = $("eventSel").value;
+  return events.find(e => String(e.id) === String(id));
+}
+function safeInt(v){
+  const n = Number(String(v ?? "").replace(/[^\d]/g,""));
+  return Number.isFinite(n) ? n : 0;
+}
+function fmtYen(n){
+  const x = Number(n||0);
+  return x.toLocaleString("ja-JP") + "円";
+}
+function getBasePriceFromEvent(gender){
+  const ev = getSelectedEvent() || {};
+  const m = ev.priceM ?? ev.malePrice ?? ev.mPrice ?? ev.m_fee ?? ev["男性料金"] ?? ev["男性参加費"];
+  const f = ev.priceF ?? ev.femalePrice ?? ev.fPrice ?? ev.f_fee ?? ev["女性料金"] ?? ev["女性参加費"];
+  const uni = ev.price ?? ev.fee ?? ev.basePrice ?? ev["基本料金"] ?? ev["参加費"];
+
+  const raw = (gender==="M" && m!=null) ? m : (gender==="F" && f!=null) ? f : uni;
+  const n = safeInt(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/* ★表示用に電話の先頭0を補正（フロント側で確実に） */
+function displayPhone(v){
+  const d = normalizePhoneLike(v);
+  if(!d) return "";
+  if(d.length === 9 || d.length === 10){
+    return d.startsWith("0") ? d : ("0" + d);
+  }
+  return d.startsWith("0") ? d : d;
+}
+
+/* ★連絡方法の正規化 */
+function normalizeContactWay(v){
+  const s = String(v??"").trim();
+  if(!s) return "";
+  const u = s.toLowerCase();
+  if(u.includes("line")) return "LINE";
+  if(u.includes("sms")) return "SMS";
+  if(u.includes("mail") || u.includes("メール") || u.includes("email")) return "メール";
+  if(u.includes("insta")) return "Instagram";
+  if(u.includes("face")) return "Facebook";
+  if(u.includes("電話") || u.includes("tel") || u.includes("phone")) return "電話";
+  return s;
+}
+
+function showAutoBadge(on){
+  $("autoBadge").style.display = on ? "inline-flex" : "none";
+  $("autoBadge").className = on ? "badge ok" : "badge";
+}
+
+/* ===== API ===== */
+async function apiEvents(){
+  const j = await fetchJson(API_URL + "?action=list");
+  return j.events || [];
+}
+async function apiCustomers(){
+  const j = await fetchJson(API_URL + "?action=customers:list&nocache=1");
+  return j.customers || [];
+}
+async function apiParticipantsList(eventId){
+  const j = await fetchJson(API_URL + "?action=participants:list&eventId=" + encodeURIComponent(eventId));
+  return j.participants || [];
+}
+async function apiParticipantsUpsert(p){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"participants:upsert", participant:p })
+  });
+}
+async function apiParticipantsDelete(pid){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"participants:delete", pid })
+  });
+}
+async function apiParticipantsRevert(pid){
+  await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"participants:revert", pid })
+  });
+}
+
+/* ===== UI：イベント選択 ===== */
+function fmtDateJa(v){
+  if(!v) return "-";
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+function escapeHtml(s){
+  return String(s??"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function buildEventSelect(){
+  const sel = $("eventSel");
+  if(!events.length){
+    sel.innerHTML = `<option value="">イベントがありません</option>`;
+    return;
+  }
+  const sorted = [...events].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  sel.innerHTML = sorted.map(e=>{
+    const label = `${fmtDateJa(e.date)}｜${e.title||e.name||"(無題)"}｜${e.place||"-"}`;
+    return `<option value="${escapeHtml(e.id)}">${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+/* ===== 顧客オートフィル ===== */
+let autoTimer = null;
+function scheduleAutoFill(){
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(tryAutoFillFromCustomers, 200);
+}
+function tryAutoFillFromCustomers(){
+  showAutoBadge(false);
+
+  const nameIn = normalizeName($("pName").value);
+  const phoneIn = normalizePhoneLike($("pContact").value);
+  if(!nameIn && !phoneIn) return;
+
+  let hit = null;
+  if(phoneIn) hit = customers.find(c => normalizePhoneLike(c.contact) === phoneIn);
+  if(!hit && nameIn) hit = customers.find(c => normalizeName(c.name) === nameIn);
+  if(!hit) return;
+
+  if(!$("pAge").value.trim() && hit.age) $("pAge").value = hit.age;
+  if(!$("pContact").value.trim() && hit.contact) $("pContact").value = displayPhone(hit.contact);
+
+  const cw = hit.contactWay ?? hit.contact_method ?? hit.contactMethod ?? hit.method ?? hit["連絡方法"] ?? hit["連絡手段"] ?? "";
+  if(!$("pContactWay").value && cw) $("pContactWay").value = normalizeContactWay(cw);
+
+  if(!$("pMemo").value.trim() && hit.memo) $("pMemo").value = hit.memo;
+
+  const g = normalizeGender(hit.gender ?? hit.sex ?? "");
+  if(!$("pGender").value && g) $("pGender").value = g;
+
+  showAutoBadge(true);
+}
+function hideSuggest(){
+  $("sugName").style.display="none";
+  $("sugPhone").style.display="none";
+  $("sugName").innerHTML="";
+  $("sugPhone").innerHTML="";
+}
+
+function applyCustomer(hit){
+  if(!hit) return;
+
+  if(hit.name) $("pName").value = hit.name;
+  const g = normalizeGender(hit.gender ?? hit.sex ?? "");
+  if(g) $("pGender").value = g;
+
+  if(hit.age) $("pAge").value = hit.age;
+  if(hit.contact) $("pContact").value = displayPhone(hit.contact);
+
+  const cw = hit.contactWay ?? hit.contact_method ?? hit.contactMethod ?? hit.method ?? hit["連絡方法"] ?? hit["連絡手段"] ?? "";
+  if(cw) $("pContactWay").value = normalizeContactWay(cw);
+
+  if(hit.memo) $("pMemo").value = hit.memo;
+
+  showAutoBadge(true);
+  hideSuggest();
+}
+
+function buildSuggestItems(list, type){
+  const top = list.slice(0, 8);
+  const html = `
+    <div class="panel">
+      ${top.map(c=>{
+        const name = c.name || "-";
+        const phone = displayPhone(c.contact || "");
+        const age = c.age ? `年齢:${c.age}` : "";
+        const way = normalizeContactWay(c.contactWay ?? c.contact_method ?? c.contactMethod ?? c.method ?? c["連絡方法"] ?? "");
+        const right = type==="name" ? (phone || way || "") : (name || way || "");
+        const leftSub = [age, way].filter(Boolean).join(" / ");
+        return `
+          <div class="item" data-hit='${escapeHtml(JSON.stringify(c))}'>
+            <div>
+              <div class="main">${escapeHtml(type==="name" ? name : phone)}</div>
+              <div class="sub">${escapeHtml(type==="name" ? (phone || "") : (name || ""))}${leftSub ? " / "+escapeHtml(leftSub) : ""}</div>
+            </div>
+            <span class="tag">選択</span>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+  return html;
+}
+
+function renderSuggest(){
+  const nameIn = normalizeName($("pName").value);
+  const phoneIn = normalizePhoneLike($("pContact").value);
+
+  // 名前サジェスト
+  if(nameIn && nameIn.length >= 2){
+    const hits = customers.filter(c => normalizeName(c.name).includes(nameIn));
+    if(hits.length){
+      $("sugName").style.display="block";
+      $("sugName").innerHTML = buildSuggestItems(hits, "name");
+    }else{
+      $("sugName").style.display="none";
+      $("sugName").innerHTML = "";
+    }
+  }else{
+    $("sugName").style.display="none";
+    $("sugName").innerHTML = "";
+  }
+
+  // 電話サジェスト（3桁以上で）
+  if(phoneIn && phoneIn.length >= 3){
+    const hits = customers.filter(c => normalizePhoneLike(c.contact).includes(phoneIn));
+    if(hits.length){
+      $("sugPhone").style.display="block";
+      $("sugPhone").innerHTML = buildSuggestItems(hits, "phone");
+    }else{
+      $("sugPhone").style.display="none";
+      $("sugPhone").innerHTML = "";
+    }
+  }else{
+    $("sugPhone").style.display="none";
+    $("sugPhone").innerHTML = "";
+  }
+}
+
+// クリックで確定
+$("sugName").addEventListener("click",(e)=>{
+  const item = e.target.closest(".item");
+  if(!item) return;
+  const hit = JSON.parse(item.dataset.hit);
+  applyCustomer(hit);
+});
+$("sugPhone").addEventListener("click",(e)=>{
+  const item = e.target.closest(".item");
+  if(!item) return;
+  const hit = JSON.parse(item.dataset.hit);
+  applyCustomer(hit);
+});
+
+// 画面のどこか押したら閉じる
+document.addEventListener("click",(e)=>{
+  const inSug = e.target.closest("#sugName") || e.target.closest("#sugPhone");
+  const inInputs = e.target.closest("#pName") || e.target.closest("#pContact");
+  if(!inSug && !inInputs) hideSuggest();
+});
+
+/* ===== 参加者データ：重複排除 ===== */
+function normalizeParticipants(raw){
+  const list = raw.map(p=>{
+    const pid = String(p.pid ?? p.participantId ?? p.id ?? "").trim();
+    const paidRaw = (p.paid ?? p.isPaid ?? p.payment ?? p["支払い"] ?? "");
+    const paidStr = String(paidRaw ?? "").trim().toLowerCase();
+    const paid = paidStr==="true" || paidStr==="1" || paidStr==="済" || paidStr==="paid";
+
+    return {
+      ...p,
+      pid,
+      gender: normalizeGender(p.gender),
+      status: normalizeStatus(p.status),
+      contact: displayPhone(p.contact),
+      contactWay: normalizeContactWay(p.contactWay ?? p.contact_method ?? p.contactMethod ?? p.method ?? p["連絡方法"] ?? p["連絡手段"] ?? ""),
+      coupleColor: String(p.coupleColor ?? p.couple ?? p.heartColor ?? p.heart ?? "").trim(),
+      discountYen: safeInt(p.discountYen ?? p.discount ?? p.discount_yen ?? p.discountAmount ?? p["割引"] ?? p["割引（円）"] ?? 0),
+      paid,
+      updatedAt: p.updatedAt || p.ts || p.timestamp || "",
+      createdAt: p.createdAt || ""
+    };
+  });
+
+  const withPid = list.filter(x=>x.pid);
+  const noPid = list.filter(x=>!x.pid);
+
+  const map = {};
+  for(const x of withPid){
+    const key = x.pid;
+    const a = map[key];
+    if(!a){ map[key]=x; continue; }
+    const ta = Date.parse(a.updatedAt||"") || 0;
+    const tb = Date.parse(x.updatedAt||"") || 0;
+    map[key] = (tb >= ta) ? x : a;
+  }
+  return [...Object.values(map), ...noPid];
+}
+
+/* ===== ★追加：カップル成立色の保存 ===== */
+async function setCoupleColor(pid, color){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+
+  setError("");
+  try{
+    setStatus("成立マーク保存中…");
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: normalizeStatus(p.status),
+      coupleColor: color || "",
+      discountYen: safeInt(p.discountYen || 0),
+      paid: !!p.paid,
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+    setStatus("成立マークを保存しました");
+    renderReservations();
+    renderConfirmed();
+    closeHeartModal();
+  }catch(err){
+    setStatus("-");
+    setError("成立マークの保存に失敗： " + (err.message || err));
+  }
+}
+
+/* ===== ★追加：割引（円）の保存（入力→即保存） ===== */
+async function setDiscountYen(pid, discountYen){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+
+  const d = Math.max(0, safeInt(discountYen));
+
+  setError("");
+  try{
+    setStatus("割引を保存中…");
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: normalizeStatus(p.status),
+      coupleColor: p.coupleColor || "",
+      discountYen: d,
+      paid: !!p.paid,
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+    setStatus("割引を保存しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("割引の保存に失敗： " + (err.message || err));
+  }
+}
+
+/* ===== ★追加：支払いトグル（未/済） ===== */
+async function togglePaid(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+
+  const next = !Boolean(p.paid);
+
+  setError("");
+  try{
+    setStatus("支払い状態を保存中…");
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: normalizeStatus(p.status),
+      coupleColor: p.coupleColor || "",
+      discountYen: safeInt(p.discountYen || 0),
+      paid: next,
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+    setStatus("支払い状態を保存しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("支払い保存に失敗： " + (err.message || err));
+  }
+}
+
+/* ===== 参加者一覧（確定のみ） ===== */
+function renderConfirmed(){
+  const q = $("q").value.trim().toLowerCase();
+
+  const confirmed = participants.filter(p => normalizeStatus(p.status) === "confirmed");
+  const filtered = q
+    ? confirmed.filter(p=>{
+        const s = `${p.name||""} ${p.contact||""} ${p.contactWay||""}`.toLowerCase();
+        return s.includes(q);
+      })
+    : confirmed;
+
+  $("count").textContent = `${filtered.length}件`;
+
+  const men = filtered.filter(p => normalizeGender(p.gender) === "M");
+  const women = filtered.filter(p => normalizeGender(p.gender) === "F");
+  const unknown = filtered.filter(p => !normalizeGender(p.gender));
+
+  $("cntM").textContent = `${men.length}名`;
+  $("cntF").textContent = `${women.length}名`;
+
+  const mk = (p, sex)=>{
+    const heart = heartEmoji(p.coupleColor);
+    const base = getBasePriceFromEvent(normalizeGender(p.gender));
+    const disc = safeInt(p.discountYen);
+    const fee  = Math.max(0, base - disc);
+
+    const payBadge = p.paid
+      ? `<span class="payBadge paid">✅支払済</span>`
+      : `<span class="payBadge unpaid">💰未払い</span>`;
+
+    return `
+      <div class="pCard ${sex}">
+        <div>
+          <div class="pName">
+            <span>${escapeHtml(p.name||"-")}</span>
+            ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
+            ${payBadge}
+          </div>
+          <div class="pMeta">
+            年齢:${escapeHtml(p.age||"-")}
+            ｜連絡先:${escapeHtml(p.contact||"-")}
+            ｜連絡方法:${escapeHtml(p.contactWay||"-")}
+          </div>
+          <div class="priceRow">
+            <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
+            <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
+            <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+          </div>
+        </div>
+        <div class="pActions">
+          ${p.pid ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(safeInt(p.discountYen)||0))}" data-discount="${escapeHtml(p.pid)}">` : ``}
+          ${p.pid ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>` : ``}
+          ${p.pid ? `<button class="btn" data-heart-open="${escapeHtml(p.pid)}" type="button">💖成立</button>` : ``}
+          ${p.pid ? `<button class="btn danger" data-del-confirm="${escapeHtml(p.pid)}" type="button">予約に戻す</button>` : ``}
+        </div>
+      </div>
+    `;
+  };
+
+  $("listM").innerHTML = men.length ? men.map(p=>mk(p,"male")).join("") : `<div class="meta">参加者がいません</div>`;
+  $("listF").innerHTML = women.length ? women.map(p=>mk(p,"female")).join("") : `<div class="meta">参加者がいません</div>`;
+
+  const sexWarn = $("sexWarn");
+  if(unknown.length){
+    sexWarn.style.display = "block";
+    sexWarn.textContent = `⚠ 性別が未設定の確定者が ${unknown.length}名います（予約一覧で性別を直してから確定してください）`;
+  }else{
+    sexWarn.style.display = "none";
+    sexWarn.textContent = "";
+  }
+
+  // ★追加：集計（確定）
+  const discSum = (arr)=>arr.reduce((a,x)=>a+safeInt(x.discountYen),0);
+  const feeSum  = (arr)=>arr.reduce((a,x)=>{
+    const b = getBasePriceFromEvent(normalizeGender(x.gender));
+    const d = safeInt(x.discountYen);
+    return a + Math.max(0, b-d);
+  },0);
+  const unpaidCount = filtered.filter(x=>!x.paid).length;
+
+  $("sumC_cnt").textContent   = String(filtered.length);
+  $("sumC_disc").textContent  = fmtYen(discSum(filtered));
+  $("sumC_sales").textContent = fmtYen(feeSum(filtered));
+  $("sumC_unpaid").textContent= String(unpaidCount);
+}
+
+/* ===== 予約一覧（モーダル） ===== */
+function countReserved(){
+  return participants.filter(p => normalizeStatus(p.status) === "reserved").length;
+}
+function openResModal(){
+  $("resBack").style.display = "flex";
+  renderReservations();
+}
+function closeResModal(){
+  $("resBack").style.display = "none";
+}
+$("btnOpenRes").onclick = openResModal;
+$("btnCloseRes").onclick = closeResModal;
+$("resBack").addEventListener("click", (e)=>{
+  if(e.target === $("resBack")) closeResModal();
+});
+
+/* ★イベント委譲でボタン反応を安定化（Safari対策） */
+$("resBody").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  if(btn.dataset.confirm) confirmParticipant(btn.dataset.confirm);
+  if(btn.dataset.del) deleteReserved(btn.dataset.del);
+  if(btn.dataset.heartOpen) openHeartModal(btn.dataset.heartOpen);
+  if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
+});
+$("listM").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  if(btn.dataset.delConfirm) revertConfirmedToReserved(btn.dataset.delConfirm);
+  if(btn.dataset.heartOpen) openHeartModal(btn.dataset.heartOpen);
+  if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
+});
+$("listF").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  if(btn.dataset.delConfirm) revertConfirmedToReserved(btn.dataset.delConfirm);
+  if(btn.dataset.heartOpen) openHeartModal(btn.dataset.heartOpen);
+  if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
+});
+
+/* ★割引 input は change/blur で即保存（委譲） */
+function bindDiscountInputDelegation(container){
+  container.addEventListener("change", (e)=>{
+    const inp = e.target.closest("input[data-discount]");
+    if(!inp) return;
+    setDiscountYen(inp.dataset.discount, inp.value);
+  });
+  container.addEventListener("blur", (e)=>{
+    const inp = e.target.closest("input[data-discount]");
+    if(!inp) return;
+    setDiscountYen(inp.dataset.discount, inp.value);
+  }, true);
+}
+bindDiscountInputDelegation($("resBody"));
+bindDiscountInputDelegation($("listM"));
+bindDiscountInputDelegation($("listF"));
+
+async function confirmParticipant(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+
+  const p = participants.find(x => x.pid === pid);
+  if(!p){
+    alert("データが見つかりませんでした（pidが未設定の可能性）");
+    return;
+  }
+
+  setError("");
+  try{
+    setStatus("参加確定中…");
+
+    await apiParticipantsUpsert({
+      eventId,
+      pid: p.pid,
+      name: p.name || "",
+      gender: normalizeGender(p.gender),
+      age: p.age || "",
+      contact: displayPhone(p.contact || ""),
+      contactWay: normalizeContactWay(p.contactWay || ""),
+      memo: p.memo || "",
+      status: "confirmed",
+      coupleColor: p.coupleColor || "",
+      discountYen: safeInt(p.discountYen || 0),
+      paid: !!p.paid,
+      updatedAt: nowIso()
+    });
+
+    await reloadParticipants(eventId);
+
+    setStatus("参加確定しました");
+    renderReservations();
+    renderConfirmed();
+
+  }catch(err){
+    setStatus("-");
+    setError("参加確定に失敗： " + (err.message || err));
+  }
+}
+
+async function deleteReserved(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  if(!pid) return alert("pidがありません（古いデータの可能性）");
+  if(!confirm("この予約を完全に削除しますか？")) return;
+
+  setError("");
+  try{
+    setStatus("削除中…");
+    await apiParticipantsDelete(pid);
+    await reloadParticipants(eventId);
+    setStatus("削除しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("削除に失敗： " + (err.message || err));
+  }
+}
+
+async function revertConfirmedToReserved(pid){
+  const eventId = $("eventSel").value;
+  if(!eventId) return;
+  if(!pid) return alert("pidがありません（古いデータの可能性）");
+  if(!confirm("この参加確定者を「予約一覧」に戻しますか？")) return;
+
+  setError("");
+  try{
+    setStatus("予約に戻しています…");
+
+    await apiParticipantsRevert(pid);
+    await reloadParticipants(eventId);
+
+    setStatus("予約一覧に戻しました");
+    renderReservations();
+    renderConfirmed();
+  }catch(err){
+    setStatus("-");
+    setError("戻す処理に失敗： " + (err.message || err));
+  }
+}
+
+function renderReservations(){
+  const reserved = participants.filter(p => normalizeStatus(p.status) === "reserved");
+
+  $("cntR").textContent = String(reserved.length);
+  $("resMeta").textContent = reserved.length ? `${reserved.length}件の予約` : "予約なし";
+
+  if(!reserved.length){
+    $("resBody").innerHTML = `<div class="meta">予約がありません</div>`;
+    return;
+  }
+
+  $("resBody").innerHTML = reserved.map(p=>{
+    const g = normalizeGender(p.gender);
+    const gLabel = g==="M" ? "男性" : (g==="F" ? "女性" : "未設定");
+    const meta = [
+      `性別:${gLabel}`,
+      `年齢:${p.age||"-"}`,
+      `連絡先:${displayPhone(p.contact)||"-"}`,
+      `連絡方法:${p.contactWay||"-"}`,
+      p.memo ? `メモ:${p.memo}` : ""
+    ].filter(Boolean).join(" ｜ ");
+
+    const heart = heartEmoji(p.coupleColor);
+
+    const base = getBasePriceFromEvent(g);
+    const disc = safeInt(p.discountYen);
+    const fee  = Math.max(0, base - disc);
+
+    const confirmBtn = p.pid
+      ? `<button class="btn primary" data-confirm="${escapeHtml(p.pid)}" type="button">参加確定</button>`
+      : `<span class="meta">pidなし（古い予約）</span>`;
+
+    const delBtn = p.pid
+      ? `<button class="btn danger" data-del="${escapeHtml(p.pid)}" type="button">削除</button>`
+      : ``;
+
+    const heartBtn = p.pid
+      ? `<button class="btn" data-heart-open="${escapeHtml(p.pid)}" type="button">💖成立</button>`
+      : ``;
+
+    const discInput = p.pid
+      ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(safeInt(p.discountYen)||0))}" data-discount="${escapeHtml(p.pid)}">`
+      : ``;
+
+    const paidBtn = p.pid
+      ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>`
+      : ``;
+
+    const payBadge = p.paid
+      ? `<span class="payBadge paid">✅支払済</span>`
+      : `<span class="payBadge unpaid">💰未払い</span>`;
+
+    return `
+      <div class="rCard">
+        <div>
+          <div class="rTitle">
+            <span>${escapeHtml(p.name||"-")}</span>
+            ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
+            ${payBadge}
+          </div>
+          <div class="rMeta">
+            ${escapeHtml(meta)}
+            <div class="priceRow">
+              <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
+              <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
+              <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="rActions">
+          ${discInput}
+          ${paidBtn}
+          ${heartBtn}
+          ${confirmBtn}
+          ${delBtn}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+/* ===== 操作 ===== */
+function clearForm(){
+  $("pName").value="";
+  $("pGender").value="";
+  $("pAge").value="";
+  $("pContact").value="";
+  $("pContactWay").value="";
+  $("pMemo").value="";
+  showAutoBadge(false);
+}
+$("btnClear").onclick = ()=>{ setError(""); clearForm(); };
+
+$("btnSave").onclick = async ()=>{
+  setError("");
+  try{
+    const eventId = $("eventSel").value;
+    if(!eventId){ alert("イベントを選択してください"); return; }
+
+    const name = $("pName").value.trim();
+    if(!name){ alert("名前は必須です"); return; }
+
+    const gender = $("pGender").value;
+    if(!gender){ alert("性別（男性/女性）を選択してください"); return; }
+
+    setStatus("予約登録中…");
+
+    const p = {
+      eventId,
+      pid: makePid(),
+      name,
+      gender,
+      age: $("pAge").value.trim(),
+      contact: displayPhone($("pContact").value.trim()),
+      contactWay: normalizeContactWay($("pContactWay").value),
+      memo: $("pMemo").value.trim(),
+      status: "reserved",
+      coupleColor: "",
+      discountYen: 0,
+      paid: false,            // ★追加：支払い初期値
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+
+    await apiParticipantsUpsert(p);
+    await reloadParticipants(eventId);
+
+    setStatus("予約として登録しました");
+    clearForm();
+    renderConfirmed();
+    renderReservations();
+
+  }catch(err){
+    setStatus("-");
+    setError("登録に失敗： " + (err.message || err));
+  }
+};
+
+$("q").oninput = renderConfirmed;
+
+$("eventSel").addEventListener("change", async ()=>{
+  setError("");
+  try{
+    const eventId = $("eventSel").value;
+
+    // 切替直後に一旦クリア（前イベントの残像を消す）
+    participantsRaw = [];
+    participants = [];
+    $("count").textContent = "-";
+    $("cntM").textContent = "0名";
+    $("cntF").textContent = "0名";
+    $("listM").innerHTML = `<div class="meta">読込中…</div>`;
+    $("listF").innerHTML = `<div class="meta">読込中…</div>`;
+    $("cntR").textContent = "0";
+    $("resBody").innerHTML = `<div class="meta">読込中…</div>`;
+
+    if(!eventId){
+      renderConfirmed();
+      renderReservations();
+      return;
+    }
+
+    await reloadParticipants(eventId);
+    renderConfirmed();
+    renderReservations();
+
+  }catch(err){
+    setEvStatus("-");
+    setError("参加者の読み込みに失敗： " + (err.message || err));
+  }
+});
+$("pName").addEventListener("input", ()=>{
+  scheduleAutoFill();
+  renderSuggest();
+});
+$("pContact").addEventListener("input", ()=>{
+  scheduleAutoFill();
+  renderSuggest();
+});
+
+$("pContactWay").addEventListener("change", ()=>{ showAutoBadge($("autoBadge").style.display !== "none"); });
+
+/* ===== ★追加：CSV出力（確定） ===== */
+function toCsv(rows){
+  const esc = (v)=>('"'+String(v??"").replaceAll('"','""')+'"');
+  return rows.map(r=>r.map(esc).join(",")).join("\n");
+}
+function downloadText(filename, text){
+  const blob = new Blob([text], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+}
+$("btnCsvConfirmed").onclick = ()=>{
+  const ev = getSelectedEvent() || {};
+  const eventTitle = (ev.title||ev.name||"event").replace(/[\\\/:*?"<>|]/g,"_");
+  const rows = participants
+    .filter(p=>normalizeStatus(p.status)==="confirmed")
+    .map(p=>{
+      const g = normalizeGender(p.gender);
+      const base = getBasePriceFromEvent(g);
+      const disc = safeInt(p.discountYen);
+      const fee  = Math.max(0, base-disc);
+      return [
+        p.name||"",
+        g==="M"?"男性":g==="F"?"女性":"未設定",
+        p.age||"",
+        p.contact||"",
+        p.contactWay||"",
+        disc,
+        fee,
+        p.paid ? "済" : "未",
+        p.memo||""
+      ];
+    });
+
+  const header = [["名前","性別","年齢","連絡先","連絡方法","割引(円)","参加費(円)","支払い","メモ"]];
+  const csv = toCsv([...header, ...rows]);
+  downloadText(`確定_${eventTitle}.csv`, csv);
+};
+
+/* ===== 読み込み ===== */
+async function reloadParticipants(eventId){
+  const seq = ++loadSeq; // ★この読み込みの番号
+  setEvStatus("参加者読込中…");
+
+  const raw = await apiParticipantsList(eventId);
+
+  // ★途中でイベントが切り替わっていたら破棄
+  if(seq !== loadSeq) return;
+
+  participantsRaw = raw;
+  participants = normalizeParticipants(participantsRaw);
+  $("cntR").textContent = String(countReserved());
+  setEvStatus("OK");
+}
+
+function hardDisableIOSAutofill(){
+  const name = $("pName");
+  const phone = $("pContact");
+  if(!name || !phone) return;
+
+  // name属性があると連絡先候補が出やすいので、毎回変える
+  const rnd = "x_" + Math.random().toString(16).slice(2);
+  name.setAttribute("name", "nm_" + rnd);
+  phone.setAttribute("name", "ph_" + rnd);
+
+  // readonlyを「タップした瞬間」に外す（オートフィル抑止の定番）
+  const unlock = (el)=> {
+    el.addEventListener("focus", ()=>{
+      el.removeAttribute("readonly");
+    }, {once:true});
+  };
+  unlock(name);
+  unlock(phone);
+}
+/* ===== 起動 ===== */
+(async()=>{
+  try{
+    initNewFold();
+    hardDisableIOSAutofill();
+
+    setEvStatus("読込中…");
+    setStatus("読込中…");
+    setError("");
+
+    customers = await apiCustomers();
+    events = await apiEvents();
+    buildEventSelect();
+
+    const firstId = $("eventSel").value;
+    if(firstId){
+      await reloadParticipants(firstId);
+    }else{
+      participantsRaw = [];
+      participants = [];
+      $("cntR").textContent = "0";
+    }
+
+    $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
+    setEvStatus("OK");
+    setStatus("OK");
+    renderConfirmed();
+    renderReservations();
+
+  }catch(err){
+    setEvStatus("-");
+    setStatus("-");
+    setError("初期化に失敗： " + (err.message || err));
+  }
+})();
+
+
+</script>
+
+</body>
+</html>
