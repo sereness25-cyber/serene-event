@@ -218,6 +218,40 @@ details.longText summary::-webkit-details-marker{display:none;}
 }
 textarea.field{border-radius:12px;min-height:78px;resize:vertical}
 hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
+/* ===== スマホ最適化：モーダルをスクロール可能に ===== */
+@media (max-width: 640px) {
+
+  .modalBack{
+    align-items: flex-start; /* 上寄せ */
+    padding: 12px;
+  }
+
+  .modal{
+    max-height: 90vh;              /* 画面の90%まで */
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modalBd{
+    overflow-y: auto;              /* ★ここが重要（中身をスクロール） */
+    -webkit-overflow-scrolling: touch;
+  }
+
+}
+
+/* ===== スマホ：保存ボタン行を下に固定（見失わない） ===== */
+@media (max-width: 640px) {
+  /* modalBd の一番最後のdiv（保存/削除/ステータスの行）を sticky 化 */
+  .modalBd > div:last-child{
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-top: 10px;
+    padding-bottom: 6px;
+    border-top: 1px solid var(--line);
+    z-index: 2;
+  }
+}
 </style>
 </head>
 
