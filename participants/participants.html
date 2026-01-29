@@ -166,6 +166,40 @@ h1{font-size:18px;margin:0}
 }
 .payBadge.paid{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
 .payBadge.unpaid{border-color:#fecaca;background:#fff1f2;color:#9f1239}
+/* ===== サジェスト ===== */
+.suggest{
+  position:relative;
+  margin-top:6px;
+}
+.suggest .panel{
+  position:absolute;
+  left:0; right:0;
+  z-index:40;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:0 16px 40px rgba(15,23,42,.14);
+  overflow:hidden;
+}
+.suggest .item{
+  padding:10px 12px;
+  cursor:pointer;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+}
+.suggest .item:hover{ background:#f8fafc; }
+.suggest .main{ font-weight:800; font-size:13px; }
+.suggest .sub{ font-size:12px; color:var(--muted); }
+.suggest .tag{
+  font-size:11px;
+  padding:3px 8px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:#fff;
+  white-space:nowrap;
+}
 </style>
 </head>
 
@@ -221,7 +255,13 @@ h1{font-size:18px;margin:0}
     <div class="grid">
       <div>
         <div class="meta" style="margin:0 0 6px">名前（必須）</div>
-        <input class="input" id="pName" placeholder="例）山田 花子">
+        <input class="input" id="pName" type="search"
+  placeholder="例）山田 花子"
+  autocomplete="new-password"
+  autocorrect="off" autocapitalize="off" spellcheck="false"
+  inputmode="text"
+  readonly>
+        <div class="suggest" id="sugName" style="display:none"></div>
       </div>
 
       <div>
@@ -241,7 +281,13 @@ h1{font-size:18px;margin:0}
 
       <div>
         <div class="meta" style="margin:0 0 6px">電話/連絡先</div>
-        <input class="input" id="pContact" placeholder="例）09012345678（先頭0もOK）" inputmode="tel">
+        <input class="input" id="pContact" type="text"
+  placeholder="例）09012345678（先頭0もOK）"
+  inputmode="numeric"
+  autocomplete="new-password"
+  autocorrect="off" autocapitalize="off" spellcheck="false"
+  readonly>
+        <div class="suggest" id="sugPhone" style="display:none"></div>
       </div>
 
       <!-- ★追加：連絡方法 -->
@@ -368,6 +414,7 @@ let events = [];
 let participantsRaw = [];
 let participants = [];     // 正規化＆重複排除後
 let customers = [];
+let loadSeq = 0; // ★読み込み競合防止用
 
 /* ===== ★追加：カップル成立（ハート色） ===== */
 const HEARTS = [
@@ -638,6 +685,113 @@ function tryAutoFillFromCustomers(){
 
   showAutoBadge(true);
 }
+function hideSuggest(){
+  $("sugName").style.display="none";
+  $("sugPhone").style.display="none";
+  $("sugName").innerHTML="";
+  $("sugPhone").innerHTML="";
+}
+
+function applyCustomer(hit){
+  if(!hit) return;
+
+  if(hit.name) $("pName").value = hit.name;
+  const g = normalizeGender(hit.gender ?? hit.sex ?? "");
+  if(g) $("pGender").value = g;
+
+  if(hit.age) $("pAge").value = hit.age;
+  if(hit.contact) $("pContact").value = displayPhone(hit.contact);
+
+  const cw = hit.contactWay ?? hit.contact_method ?? hit.contactMethod ?? hit.method ?? hit["連絡方法"] ?? hit["連絡手段"] ?? "";
+  if(cw) $("pContactWay").value = normalizeContactWay(cw);
+
+  if(hit.memo) $("pMemo").value = hit.memo;
+
+  showAutoBadge(true);
+  hideSuggest();
+}
+
+function buildSuggestItems(list, type){
+  const top = list.slice(0, 8);
+  const html = `
+    <div class="panel">
+      ${top.map(c=>{
+        const name = c.name || "-";
+        const phone = displayPhone(c.contact || "");
+        const age = c.age ? `年齢:${c.age}` : "";
+        const way = normalizeContactWay(c.contactWay ?? c.contact_method ?? c.contactMethod ?? c.method ?? c["連絡方法"] ?? "");
+        const right = type==="name" ? (phone || way || "") : (name || way || "");
+        const leftSub = [age, way].filter(Boolean).join(" / ");
+        return `
+          <div class="item" data-hit='${escapeHtml(JSON.stringify(c))}'>
+            <div>
+              <div class="main">${escapeHtml(type==="name" ? name : phone)}</div>
+              <div class="sub">${escapeHtml(type==="name" ? (phone || "") : (name || ""))}${leftSub ? " / "+escapeHtml(leftSub) : ""}</div>
+            </div>
+            <span class="tag">選択</span>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+  return html;
+}
+
+function renderSuggest(){
+  const nameIn = normalizeName($("pName").value);
+  const phoneIn = normalizePhoneLike($("pContact").value);
+
+  // 名前サジェスト
+  if(nameIn && nameIn.length >= 2){
+    const hits = customers.filter(c => normalizeName(c.name).includes(nameIn));
+    if(hits.length){
+      $("sugName").style.display="block";
+      $("sugName").innerHTML = buildSuggestItems(hits, "name");
+    }else{
+      $("sugName").style.display="none";
+      $("sugName").innerHTML = "";
+    }
+  }else{
+    $("sugName").style.display="none";
+    $("sugName").innerHTML = "";
+  }
+
+  // 電話サジェスト（3桁以上で）
+  if(phoneIn && phoneIn.length >= 3){
+    const hits = customers.filter(c => normalizePhoneLike(c.contact).includes(phoneIn));
+    if(hits.length){
+      $("sugPhone").style.display="block";
+      $("sugPhone").innerHTML = buildSuggestItems(hits, "phone");
+    }else{
+      $("sugPhone").style.display="none";
+      $("sugPhone").innerHTML = "";
+    }
+  }else{
+    $("sugPhone").style.display="none";
+    $("sugPhone").innerHTML = "";
+  }
+}
+
+// クリックで確定
+$("sugName").addEventListener("click",(e)=>{
+  const item = e.target.closest(".item");
+  if(!item) return;
+  const hit = JSON.parse(item.dataset.hit);
+  applyCustomer(hit);
+});
+$("sugPhone").addEventListener("click",(e)=>{
+  const item = e.target.closest(".item");
+  if(!item) return;
+  const hit = JSON.parse(item.dataset.hit);
+  applyCustomer(hit);
+});
+
+// 画面のどこか押したら閉じる
+document.addEventListener("click",(e)=>{
+  const inSug = e.target.closest("#sugName") || e.target.closest("#sugPhone");
+  const inInputs = e.target.closest("#pName") || e.target.closest("#pContact");
+  if(!inSug && !inInputs) hideSuggest();
+});
 
 /* ===== 参加者データ：重複排除 ===== */
 function normalizeParticipants(raw){
@@ -1163,25 +1317,41 @@ $("eventSel").addEventListener("change", async ()=>{
   setError("");
   try{
     const eventId = $("eventSel").value;
+
+    // 切替直後に一旦クリア（前イベントの残像を消す）
+    participantsRaw = [];
+    participants = [];
+    $("count").textContent = "-";
+    $("cntM").textContent = "0名";
+    $("cntF").textContent = "0名";
+    $("listM").innerHTML = `<div class="meta">読込中…</div>`;
+    $("listF").innerHTML = `<div class="meta">読込中…</div>`;
+    $("cntR").textContent = "0";
+    $("resBody").innerHTML = `<div class="meta">読込中…</div>`;
+
     if(!eventId){
-      participantsRaw = [];
-      participants = [];
       renderConfirmed();
-      $("cntR").textContent = "0";
       renderReservations();
       return;
     }
+
     await reloadParticipants(eventId);
     renderConfirmed();
     renderReservations();
+
   }catch(err){
     setEvStatus("-");
     setError("参加者の読み込みに失敗： " + (err.message || err));
   }
 });
-
-$("pName").addEventListener("input", scheduleAutoFill);
-$("pContact").addEventListener("input", scheduleAutoFill);
+$("pName").addEventListener("input", ()=>{
+  scheduleAutoFill();
+  renderSuggest();
+});
+$("pContact").addEventListener("input", ()=>{
+  scheduleAutoFill();
+  renderSuggest();
+});
 
 $("pContactWay").addEventListener("change", ()=>{ showAutoBadge($("autoBadge").style.display !== "none"); });
 
@@ -1230,17 +1400,44 @@ $("btnCsvConfirmed").onclick = ()=>{
 
 /* ===== 読み込み ===== */
 async function reloadParticipants(eventId){
+  const seq = ++loadSeq; // ★この読み込みの番号
   setEvStatus("参加者読込中…");
-  participantsRaw = await apiParticipantsList(eventId);
+
+  const raw = await apiParticipantsList(eventId);
+
+  // ★途中でイベントが切り替わっていたら破棄
+  if(seq !== loadSeq) return;
+
+  participantsRaw = raw;
   participants = normalizeParticipants(participantsRaw);
   $("cntR").textContent = String(countReserved());
   setEvStatus("OK");
 }
 
+function hardDisableIOSAutofill(){
+  const name = $("pName");
+  const phone = $("pContact");
+  if(!name || !phone) return;
+
+  // name属性があると連絡先候補が出やすいので、毎回変える
+  const rnd = "x_" + Math.random().toString(16).slice(2);
+  name.setAttribute("name", "nm_" + rnd);
+  phone.setAttribute("name", "ph_" + rnd);
+
+  // readonlyを「タップした瞬間」に外す（オートフィル抑止の定番）
+  const unlock = (el)=> {
+    el.addEventListener("focus", ()=>{
+      el.removeAttribute("readonly");
+    }, {once:true});
+  };
+  unlock(name);
+  unlock(phone);
+}
 /* ===== 起動 ===== */
 (async()=>{
   try{
     initNewFold();
+    hardDisableIOSAutofill();
 
     setEvStatus("読込中…");
     setStatus("読込中…");
@@ -1271,6 +1468,8 @@ async function reloadParticipants(eventId){
     setError("初期化に失敗： " + (err.message || err));
   }
 })();
+
+
 </script>
 
 </body>
