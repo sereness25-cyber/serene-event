@@ -431,6 +431,34 @@ let participants = [];
 let customers = [];
 let loadSeq = 0;
 
+// ===== 割引保存：1本化キュー（ロック詰まり対策） =====
+const discQueue = new Map(); // pid -> latestValue
+let discWorkerRunning = false;
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+async function runDiscWorker(){
+  if(discWorkerRunning) return;
+  discWorkerRunning = true;
+
+  while(discQueue.size){
+    // 先頭1件だけ処理（同時保存を絶対に発生させない）
+    const [pid, value] = discQueue.entries().next().value;
+    discQueue.delete(pid);
+
+    // ロック競合を避けるため少し間隔を空ける
+    await saveDiscountOnlyWithRetry(pid, value);
+    await sleep(150);
+  }
+
+  discWorkerRunning = false;
+}
+
+function requestDiscountSave(pid, value){
+  discQueue.set(pid, value); // 同じpidは最後の値で上書き
+  runDiscWorker();
+}
+
 // ===== ★高速化：イベント別キャッシュ（即表示→裏で更新） =====
 const PART_CACHE_KEY = "participants_cache_v1";
 const participantsCache = new Map();
@@ -960,54 +988,56 @@ function focusDiscount(pid){
 }
 
 /* 割引保存（変更：保存直前に pid を記録→reload後にフォーカス復帰） */
-async function setDiscountYen(pid, discountYen){
+async function saveDiscountOnlyWithRetry(pid, value){
   const eventId = $("eventSel").value;
   if(!eventId) return;
+
   const p = participants.find(x=>x.pid===pid);
   if(!p) return;
 
-  const d = Math.max(0, safeInt(discountYen));
-  savingDiscountPid = pid;
-  restoreFocusPid = pid;
+  const d = Math.max(0, safeInt(value));
 
-  setError("");
-  try{
-    setStatus("割引を保存中…");
-    await apiParticipantsUpsert({
-      eventId,
-      pid: p.pid,
-      name: p.name || "",
-      gender: normalizeGender(p.gender),
-      age: p.age || "",
-      contact: displayPhone(p.contact || ""),
-      contactWay: normalizeContactWay(p.contactWay || ""),
-      memo: p.memo || "",
-      status: normalizeStatus(p.status),
-      coupleColor: p.coupleColor || "",
-      discountYen: d,
-      paid: !!p.paid,
-      updatedAt: nowIso()
-    });
+  // 画面は即反映
+  p.discountYen = d;
+  p.updatedAt = nowIso();
+  setStatus("割引を保存中…");
 
-    clearDraft(pid);
-    await reloadParticipants(eventId);
+  let lastErr = null;
+  for(let i=0;i<3;i++){
+    try{
+      await apiParticipantsUpsert({
+        eventId,
+        pid: p.pid,
+        name: p.name || "",
+        gender: normalizeGender(p.gender),
+        age: p.age || "",
+        contact: displayPhone(p.contact || ""),
+        contactWay: normalizeContactWay(p.contactWay || ""),
+        memo: p.memo || "",
+        status: normalizeStatus(p.status),
+        coupleColor: p.coupleColor || "",
+        discountYen: d,
+        paid: !!p.paid,
+        updatedAt: nowIso()
+      });
 
-    setStatus("割引を保存しました");
-    renderReservations();
-    renderConfirmed();
+      clearDraft(pid);
+      setStatus("割引を保存しました");
+      return;
 
-    // ★フォーカス復帰（入力中にカーソルが外れる対策）
-    if(restoreFocusPid){
-      focusDiscount(restoreFocusPid);
-      restoreFocusPid = "";
+    }catch(err){
+      lastErr = err;
+      const msg = String(err?.message || err || "");
+      if(msg.includes("ロック") || msg.includes("Lock") || msg.includes("timeout")){
+        await new Promise(r=>setTimeout(r, 400*(i+1)));
+        continue;
+      }
+      break;
     }
-
-  }catch(err){
-    setStatus("-");
-    setError("割引の保存に失敗： " + (err.message || err));
-  }finally{
-    savingDiscountPid = "";
   }
+
+  setStatus("-");
+  setError("割引の保存に失敗： " + (lastErr?.message || lastErr));
 }
 
 /* ===== 支払いトグル ===== */
@@ -1179,20 +1209,16 @@ $("listF").addEventListener("click", (e)=>{
 
 /* ★割引 input：input(debounce)+Enter+blur で保存。draftでフォーカス維持 */
 function bindDiscountInputDelegation(container){
-  // 入力中は draft に保持
+
+  // 入力中は保存しない（draftのみ）
   container.addEventListener("input", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
     const pid = inp.dataset.discount;
     setDraft(pid, inp.value);
-
-    debounceByKey("disc_"+pid, ()=>{
-      // 入力中に確定保存（フォーカス維持のために今の値で保存）
-      setDiscountYen(pid, inp.value);
-    }, 600);
   });
 
-  // Enterで即保存
+  // Enterで確定保存
   container.addEventListener("keydown", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
@@ -1200,17 +1226,24 @@ function bindDiscountInputDelegation(container){
       e.preventDefault();
       const pid = inp.dataset.discount;
       setDraft(pid, inp.value);
-      setDiscountYen(pid, inp.value);
+      requestDiscountSave(pid, inp.value);
+      inp.blur();
     }
   });
 
-  // blurでも保存（最後の保険）
-  container.addEventListener("blur", (e)=>{
+  // フォーカスアウト時に1回だけ保存
+  container.addEventListener("focusout", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
     const pid = inp.dataset.discount;
-    setDraft(pid, inp.value);
-    setDiscountYen(pid, inp.value);
+
+    const current = String(inp.value ?? "");
+    const last = inp.dataset.lastSaved ?? "";
+    if(current === last) return;
+
+    inp.dataset.lastSaved = current;
+    setDraft(pid, current);
+    requestDiscountSave(pid, current);
   }, true);
 }
 bindDiscountInputDelegation($("resBody"));
