@@ -431,6 +431,75 @@ let participants = [];
 let customers = [];
 let loadSeq = 0;
 
+// ===== ★高速化：イベント別キャッシュ（即表示→裏で更新） =====
+const PART_CACHE_KEY = "participants_cache_v1";
+const participantsCache = new Map();
+
+// localStorage から復元
+(function loadCache(){
+  try{
+    const obj = JSON.parse(localStorage.getItem(PART_CACHE_KEY) || "{}");
+    for(const [eventId, payload] of Object.entries(obj)){
+      participantsCache.set(eventId, payload);
+    }
+  }catch(_){}
+})();
+
+function saveCache(){
+  try{
+    const obj = Object.fromEntries(participantsCache.entries());
+    localStorage.setItem(PART_CACHE_KEY, JSON.stringify(obj));
+  }catch(_){}
+}
+
+function setCache(eventId, raw){
+  const normalized = normalizeParticipants(raw || []);
+  participantsCache.set(String(eventId), {
+    ts: Date.now(),
+    raw: raw || [],
+    normalized
+  });
+  saveCache();
+}
+function getCache(eventId){
+  return participantsCache.get(String(eventId)) || null;
+}
+
+// ===== ★即時反映（楽観的UI）＋二重クリック防止 =====
+const inflight = new Set();
+
+function optimisticUpdate(pid, patch){
+  const i = participants.findIndex(x => x.pid === pid);
+  if(i < 0) return null;
+  const prev = { ...participants[i] };
+  participants[i] = { ...participants[i], ...patch };
+  return prev;
+}
+function optimisticRevert(pid, prev){
+  if(!prev) return;
+  const i = participants.findIndex(x => x.pid === pid);
+  if(i < 0) return;
+  participants[i] = prev;
+}
+
+function lockAction(pid){
+  inflight.add(pid);
+  // 表示的にもわかるように（ボタン連打を抑止）
+  document.querySelectorAll(`[data-confirm="${CSS.escape(pid)}"]`).forEach(b=>{
+    b.disabled = true;
+    b.style.opacity = "0.6";
+    b.textContent = "反映中…";
+  });
+}
+function unlockAction(pid){
+  inflight.delete(pid);
+  document.querySelectorAll(`[data-confirm="${CSS.escape(pid)}"]`).forEach(b=>{
+    b.disabled = false;
+    b.style.opacity = "";
+    b.textContent = "参加確定";
+  });
+}
+
 /* ===== カップル成立（ハート） ===== */
 const HEARTS = [
   { key:"",        label:"なし", emoji:"" },
@@ -608,7 +677,10 @@ function showAutoBadge(on){
 async function apiEvents(){ const j = await fetchJson(API_URL + "?action=list"); return j.events || []; }
 async function apiCustomers(){ const j = await fetchJson(API_URL + "?action=customers:list&nocache=1"); return j.customers || []; }
 async function apiParticipantsList(eventId){
-  const j = await fetchJson(API_URL + "?action=participants:list&eventId=" + encodeURIComponent(eventId));
+  const j = await fetchJson(
+    API_URL + "?action=participants:list&eventId=" + encodeURIComponent(eventId)
+    + "&nocache=1&t=" + Date.now() // ★追加：ブラウザ/中間キャッシュ回避
+  );
   return j.participants || [];
 }
 async function apiParticipantsUpsert(p){
@@ -840,8 +912,7 @@ async function setCoupleColor(pid, color){
 
     await reloadParticipants(eventId);
     setStatus("成立マークを保存しました");
-    renderReservations();
-    renderConfirmed();
+    
     closeHeartModal();
   }catch(err){
     setStatus("-");
@@ -1151,6 +1222,8 @@ async function confirmParticipant(pid){
   const eventId = $("eventSel").value;
   if(!eventId) return;
 
+  if(inflight.has(pid)) return; // 二重押し防止
+
   const p = participants.find(x => x.pid === pid);
   if(!p){
     alert("データが見つかりませんでした（pidが未設定の可能性）");
@@ -1158,8 +1231,19 @@ async function confirmParticipant(pid){
   }
 
   setError("");
+  lockAction(pid);
+
+  // ★(A) まず画面だけ即反映（保存前でもUIは確定に移動）
+  const prev = optimisticUpdate(pid, {
+    status: "confirmed",
+    updatedAt: nowIso()
+  });
+  renderConfirmed();
+  renderReservations();
+  setStatus("参加確定（画面反映）→ 保存中…");
+
   try{
-    setStatus("参加確定中…");
+    // ★(B) 裏で保存
     await apiParticipantsUpsert({
       eventId,
       pid: p.pid,
@@ -1176,13 +1260,22 @@ async function confirmParticipant(pid){
       updatedAt: nowIso()
     });
 
+    // ★(C) 最後に再読込で整合（ここが遅くてもUIは既に動いてる）
     await reloadParticipants(eventId);
-    setStatus("参加確定しました");
-    renderReservations();
     renderConfirmed();
+    renderReservations();
+
+    setStatus("参加確定しました");
   }catch(err){
+    // 失敗したら元に戻す
+    optimisticRevert(pid, prev);
+    renderConfirmed();
+    renderReservations();
+
     setStatus("-");
     setError("参加確定に失敗： " + (err.message || err));
+  }finally{
+    unlockAction(pid);
   }
 }
 
@@ -1488,14 +1581,40 @@ async function reloadParticipants(eventId){
   const seq = ++loadSeq;
   setEvStatus("参加者読込中…");
 
-  const raw = await apiParticipantsList(eventId);
-  if(seq !== loadSeq) return;
+  // ★(A) まずキャッシュがあれば即表示（体感が爆速）
+  const cached = getCache(eventId);
+  if(cached && Array.isArray(cached.raw)){
+    participantsRaw = cached.raw;
+    participants = cached.normalized || normalizeParticipants(cached.raw);
+    $("cntR").textContent = String(countReserved());
+    // ここで一旦描画（切替が一瞬で終わる）
+    renderConfirmed();
+    renderReservations();
+    setEvStatus("OK");
+  }
 
-  participantsRaw = raw;
-  participants = normalizeParticipants(participantsRaw);
+  // ★(B) 裏で最新データ取得 → 差し替え
+  try{
+    const raw = await apiParticipantsList(eventId);
+    if(seq !== loadSeq) return; // 途中でイベント切替されたら破棄
 
-  $("cntR").textContent = String(countReserved());
-  setEvStatus("OK");
+    participantsRaw = raw;
+    participants = normalizeParticipants(participantsRaw);
+    setCache(eventId, raw);     // ★キャッシュ更新
+
+    $("cntR").textContent = String(countReserved());
+    renderConfirmed();
+    renderReservations();
+    setEvStatus("OK");
+  }catch(err){
+    // キャッシュ表示できてれば致命的じゃない
+    if(!cached){
+      setEvStatus("-");
+      throw err;
+    }else{
+      setEvStatus("OK");
+    }
+  }
 }
 
 /* iOS autofill抑止 */
