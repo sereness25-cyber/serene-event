@@ -1464,11 +1464,11 @@ $("btnSave").onclick = async ()=>{
     const gender = $("pGender").value;
     if(!gender){ alert("性別（男性/女性）を選択してください"); return; }
 
-    setStatus("予約登録中…");
-
+    // 入力を確定（先に作る）
+    const pid = makePid();
     const p = {
       eventId,
-      pid: makePid(),
+      pid,
       name,
       gender,
       age: $("pAge").value.trim(),
@@ -1483,20 +1483,45 @@ $("btnSave").onclick = async ()=>{
       updatedAt: nowIso()
     };
 
-    await apiParticipantsUpsert(p);
-    await reloadParticipants(eventId);
+    // ★(A) 先にUIへ即反映（ここが体感速度の要）
+    participants = [p, ...participants];       // 先頭に追加
+    participantsRaw = [p, ...participantsRaw]; // rawも合わせる（簡易でOK）
+    setCache(eventId, participantsRaw);        // キャッシュも更新
 
-    setStatus("予約として登録しました");
     clearForm();
     renderConfirmed();
     renderReservations();
+    setStatus("予約を追加しました（保存中…）");
+
+    // ★(B) 裏で保存（待たない）
+    apiParticipantsUpsert(p).then(async ()=>{
+      setStatus("保存しました");
+
+      // ★(C) 重い再読込は「あとで」「必要時だけ」
+      // データ整合が必要なら、数秒後に1回だけ同期（任意）
+      setTimeout(async ()=>{
+        try{
+          await reloadParticipants(eventId);
+          setStatus("同期しました");
+        }catch(_){}
+      }, 1200);
+
+    }).catch(err=>{
+      // 失敗したら画面から取り消す
+      participants = participants.filter(x=>x.pid !== pid);
+      participantsRaw = participantsRaw.filter(x=>String(x.pid) !== String(pid));
+      setCache(eventId, participantsRaw);
+      renderConfirmed();
+      renderReservations();
+      setStatus("-");
+      setError("登録に失敗： " + (err.message || err));
+    });
 
   }catch(err){
     setStatus("-");
     setError("登録に失敗： " + (err.message || err));
   }
 };
-
 $("q").oninput = renderConfirmed;
 
 $("eventSel").addEventListener("change", async ()=>{
@@ -1509,8 +1534,11 @@ $("eventSel").addEventListener("change", async ()=>{
     $("count").textContent = "-";
     $("cntM").textContent = "0名";
     $("cntF").textContent = "0名";
-    $("listM").innerHTML = `<div class="meta">読込中…</div>`;
-    $("listF").innerHTML = `<div class="meta">読込中…</div>`;
+    const cached = getCache(eventId);
+if(!cached){
+  $("listM").innerHTML = `<div class="meta">読込中…</div>`;
+  $("listF").innerHTML = `<div class="meta">読込中…</div>`;
+}
     $("cntR").textContent = "0";
     $("resBody").innerHTML = `<div class="meta">読込中…</div>`;
 
@@ -1646,9 +1674,14 @@ function hardDisableIOSAutofill(){
     setStatus("読込中…");
     setError("");
 
-    customers = await apiCustomers();
-    events = await apiEvents();
-    buildEventSelect();
+    // ① まずイベントだけ取得 → 即表示
+events = await apiEvents();
+buildEventSelect();
+
+// ② 顧客マスタは裏で読み込む（待たない）
+apiCustomers().then(list=>{
+  customers = list;
+});
 
     const firstId = $("eventSel").value;
     if(firstId){
