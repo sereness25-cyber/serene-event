@@ -81,6 +81,22 @@ h1{font-size:18px;margin:0}
   display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
 }
 .modalBd{padding:12px 14px}
+
+/* =========================
+   ✅ 男女タブ（追記）
+========================= */
+.tabRow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.tabBtn{
+  border:1px solid var(--line);
+  background:#fff;
+  padding:8px 10px;
+  border-radius:999px;
+  cursor:pointer;
+  font-weight:900;
+  font-size:12px;
+}
+.tabBtn.on{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff;border:none}
+.tabCnt{font-size:11px;color:var(--muted);font-weight:800}
 </style>
 </head>
 
@@ -111,6 +127,15 @@ h1{font-size:18px;margin:0}
     <span class="err" id="err"></span>
   </div>
   <div class="bd">
+
+    <!-- ✅ 男女タブ（追記） -->
+    <div class="tabRow">
+      <button class="tabBtn on" id="tabAll" type="button">全て <span class="tabCnt" id="tabCntAll">(0)</span></button>
+      <button class="tabBtn" id="tabM" type="button">👨 男性 <span class="tabCnt" id="tabCntM">(0)</span></button>
+      <button class="tabBtn" id="tabF" type="button">👩 女性 <span class="tabCnt" id="tabCntF">(0)</span></button>
+      <button class="tabBtn" id="tabU" type="button">未設定 <span class="tabCnt" id="tabCntU">(0)</span></button>
+    </div>
+
     <div class="list" id="list"></div>
   </div>
 </section>
@@ -167,6 +192,29 @@ const ADMIN_KEY = "kei591117";
 
 const $ = id => document.getElementById(id);
 let customers = [];
+
+/* =========================
+   ✅ 男女タブ状態（追記）
+========================= */
+let sexTab = "all"; // all / M / F / U
+
+function normalizeGender(v){
+  const s = String(v??"").trim().toUpperCase();
+  if(s==="M" || s==="MALE" || s==="男" || s==="男性") return "M";
+  if(s==="F" || s==="FEMALE" || s==="女" || s==="女性") return "F";
+  return "";
+}
+function setSexTab(next){
+  sexTab = next;
+  const map = {all:"tabAll", M:"tabM", F:"tabF", U:"tabU"};
+  ["tabAll","tabM","tabF","tabU"].forEach(id=>$(id).classList.remove("on"));
+  $(map[next]).classList.add("on");
+  render();
+}
+$("tabAll").onclick = ()=>setSexTab("all");
+$("tabM").onclick   = ()=>setSexTab("M");
+$("tabF").onclick   = ()=>setSexTab("F");
+$("tabU").onclick   = ()=>setSexTab("U");
 
 function setStatus(msg){ $("status").textContent = msg || "-"; }
 function setError(msg){ $("err").textContent = msg || ""; }
@@ -313,13 +361,29 @@ $("btnDelete").onclick = async ()=>{
 
 /* ===== 表示 ===== */
 function render(){
-  const q = $("q").value.trim();
-  const list = q
+  const q = $("q").value.trim().toLowerCase();
+
+  // ✅ まず検索
+  let list = q
     ? customers.filter(c=>{
         const s = `${c.name||""} ${c.contact||""}`.toLowerCase();
-        return s.includes(q.toLowerCase());
+        return s.includes(q);
       })
-    : customers;
+    : [...customers];
+
+  // ✅ 性別タブで絞り込み（gender フィールドを想定）
+  const men = list.filter(c => normalizeGender(c.gender ?? c.sex ?? "") === "M");
+  const women = list.filter(c => normalizeGender(c.gender ?? c.sex ?? "") === "F");
+  const unknown = list.filter(c => !normalizeGender(c.gender ?? c.sex ?? ""));
+
+  $("tabCntAll").textContent = `(${list.length})`;
+  $("tabCntM").textContent   = `(${men.length})`;
+  $("tabCntF").textContent   = `(${women.length})`;
+  $("tabCntU").textContent   = `(${unknown.length})`;
+
+  if(sexTab==="M") list = men;
+  if(sexTab==="F") list = women;
+  if(sexTab==="U") list = unknown;
 
   $("count").textContent = list.length + "件";
 
@@ -330,12 +394,15 @@ function render(){
 
   $("list").innerHTML = list.map(c=>{
     const origIdx = customers.indexOf(c);
+    const g = normalizeGender(c.gender ?? c.sex ?? "");
+    const gLabel = g==="M" ? "男性" : g==="F" ? "女性" : "未設定";
     return `
       <div class="item">
         <div>
           <div class="title">${escapeHtml(c.name||"")}</div>
           <div class="subline">
-            年齢:${escapeHtml(c.age||"-")}
+            性別:${escapeHtml(gLabel)}
+            ｜年齢:${escapeHtml(c.age||"-")}
             ｜連絡先:${escapeHtml(c.contact||"-")}
             ｜方法:${escapeHtml(c.contactMethod||"-")}
             ｜参加:${escapeHtml(c.joinCount||"0")}回
