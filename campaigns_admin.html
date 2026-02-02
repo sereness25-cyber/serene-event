@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>キャンペーン管理</title>
+
+<style>
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --line:#e5e7eb; --pri:#4f7cff; --pri2:#2dd4bf;
+  --shadow:0 10px 26px rgba(15,23,42,.08);
+  --radius:16px; --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#f6f7fb 0%, #eef2ff 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 14px 40px}
+
+header{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:12px;flex-wrap:wrap;padding-bottom:12px
+}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
+h1{font-size:18px;margin:0}
+.sub{font-size:12px;color:var(--muted)}
+
+.btn{
+  border:1px solid var(--line);background:#fff;
+  padding:8px 12px;border-radius:999px;cursor:pointer;
+  font-size:12px; text-decoration:none; color:inherit;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn.primary{
+  background:linear-gradient(135deg,var(--pri),var(--pri2));
+  color:#fff;border:none;
+}
+.btn.danger{border-color:#fca5a5;color:#b91c1c}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+
+.input{
+  border:1px solid var(--line);
+  padding:10px 12px;border-radius:999px;
+  width:100%;
+  font-size:13px;
+  background:#fff;
+}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bd{padding:12px 14px}
+.meta{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:#b91c1c;white-space:pre-wrap}
+.list{display:flex;flex-direction:column;gap:10px}
+
+/* 折りたたみ */
+.item{ border:1px solid var(--line); border-radius:14px; background:#fff; }
+.sum{
+  cursor:pointer; list-style:none;
+  display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
+  padding:12px 14px;
+}
+.sum::-webkit-details-marker{display:none;}
+.head{min-width:260px;flex:1}
+.head .title{font-weight:800}
+.chev{
+  flex:0 0 auto; font-size:12px; color:var(--muted); user-select:none;
+  transform-origin:center; transition:transform .15s ease; margin-top:2px;
+}
+details[open] .chev{transform:rotate(180deg);}
+.body{padding:0 14px 12px;}
+.bodyInner{
+  padding-top:10px; border-top:1px dashed var(--line);
+  display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+}
+.bodyLeft{min-width:260px;flex:1}
+.bodyActions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+
+.metaLine{
+  font-size:12px; color:var(--muted); line-height:1.6; margin-top:6px;
+  display:flex; gap:8px; flex-wrap:wrap;
+}
+.badge{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; border-radius:999px;
+  border:1px solid var(--line); background:#fafbff; color:#334155;
+  font-size:12px; white-space:nowrap;
+}
+.badge.pri{ border-color:rgba(79,124,255,.25); background:rgba(79,124,255,.08); color:#1f3b8f; }
+.badge.ok{ border-color:rgba(45,212,191,.35); background:rgba(45,212,191,.10); color:#0f766e; }
+.badge.warn{ border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.12); color:#92400e; }
+.badge.dng{ border-color:rgba(239,68,68,.25); background:rgba(239,68,68,.08); color:#991b1b; }
+
+/* ✅ 種類バッジ */
+.badge.type{ border-color:rgba(148,163,184,.45); background:rgba(148,163,184,.12); color:#334155; }
+.badge.type.event{ border-color:rgba(99,102,241,.35); background:rgba(99,102,241,.10); color:#3730a3; }
+.badge.type.consulting{ border-color:rgba(16,185,129,.35); background:rgba(16,185,129,.10); color:#065f46; }
+.badge.type.other{ border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.12); color:#92400e; }
+
+.sections{ margin-top:10px; display:flex; flex-direction:column; gap:10px; }
+.box{ border:1px solid var(--line); background:#fff; border-radius:12px; padding:10px 12px; }
+.boxTitle{
+  font-size:12px; color:var(--muted); font-weight:800;
+  margin:0 0 6px 0; letter-spacing:.02em;
+}
+.boxText{
+  font-size:13px; line-height:1.7;
+  white-space:pre-wrap; word-break:break-word;
+}
+.kv{
+  display:grid; grid-template-columns:88px 1fr;
+  gap:6px 10px; font-size:13px; line-height:1.65;
+}
+.kv .k{ color:var(--muted); font-weight:700; }
+.kv .v{ color:var(--text); }
+.kv .v a{color:var(--pri); text-decoration:underline}
+
+/* ===== 画像サムネ（一覧） ===== */
+.thumb{
+  width:56px;height:40px;border-radius:10px;border:1px solid var(--line);
+  background:#f3f4f6; overflow:hidden; flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb span{font-size:11px;color:var(--muted)}
+.sumLeft{display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0}
+
+/* モーダル */
+.modalBack{
+  position:fixed;inset:0;background:rgba(15,23,42,.35);
+  display:none;align-items:center;justify-content:center;
+  padding:18px; z-index:50;
+}
+.modal{
+  width:min(900px,100%);
+  background:#fff;border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);
+}
+.modalHd{
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+}
+.modalHd strong{font-size:14px}
+.modalBd{padding:12px 14px}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+}
+@media(max-width:900px){ .grid{grid-template-columns:1fr 1fr} }
+@media(max-width:520px){ .grid{grid-template-columns:1fr} }
+.fieldLabel{font-size:12px;color:var(--muted);margin:6px 0 6px}
+.field{
+  border:1px solid var(--line);
+  padding:10px 12px;border-radius:12px;width:100%;
+  font-size:13px; background:#fff;
+}
+textarea.field{border-radius:12px;min-height:92px;resize:vertical}
+select.field{appearance:none}
+hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
+
+/* ✅ PCでもモーダル内をスクロール可能 */
+.modalBack{ align-items:flex-start; overflow:auto; }
+.modal{ max-height:90vh; display:flex; flex-direction:column; }
+.modalBd{ overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+/* 保存ボタン行を下に固定 */
+.modalBd > div:last-child{
+  position: sticky; bottom: 0;
+  background: #fff;
+  padding-top: 10px; padding-bottom: 6px;
+  border-top: 1px solid var(--line);
+  z-index: 2;
+}
+@media (max-width: 640px) { .modalBack{ padding:12px; } }
+
+/* 画像プレビュー */
+.previewRow{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.preview{
+  width:160px;height:110px;border-radius:12px;border:1px solid var(--line);
+  background:#f3f4f6; overflow:hidden; display:flex;align-items:center;justify-content:center;
+}
+/* ✅ 縦画像でも比率維持しつつ全体表示（切れない） */
+.preview img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:#fff;
+}
+.smallHelp{font-size:12px;color:var(--muted);line-height:1.5}
+
+/* ===== ✅ トリミングUI ===== */
+.cropWrap{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  margin-top:10px;
+}
+.cropCanvas{
+  width:360px;
+  height:220px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#f3f4f6;
+  touch-action:none;
+}
+.cropControls{
+  flex:1;
+  min-width:220px;
+}
+.rangeRow{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px;
+}
+.rangeRow input[type="range"]{ width:100%; }
+.btnRow{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <h1>キャンペーン管理</h1>
+      <div class="sub">共有DB（スプレッドシート）に保存されます</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="btn" id="btnReload" type="button">更新</button>
+    <button class="btn primary" id="btnNew" type="button">新規登録</button>
+    <button class="btn" id="btnBackup" type="button">バックアップ</button>
+    <button class="btn danger" id="btnRestore" type="button">復元</button>
+    <button class="btn" id="btnKey" type="button" title="管理キーを再入力">🔑 キー</button>
+  </div>
+</header>
+
+<section class="card">
+  <div class="hd">
+    <strong>登録済みキャンペーン</strong>
+    <span class="meta" id="count">-</span>
+    <span class="meta" id="loadedAt">-</span>
+  </div>
+  <div class="bd">
+    <input class="input" id="q" placeholder="検索（タイトル/種類/タグ/説明…）">
+  </div>
+</section>
+
+<section class="card" style="margin-top:14px">
+  <div class="bd">
+    <div class="list" id="list"></div>
+    <div class="err" id="err" style="margin-top:10px"></div>
+  </div>
+</section>
+
+<!-- ===== モーダル（新規/編集） ===== -->
+<div class="modalBack" id="modalBack" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modalHd">
+      <strong id="modalTitle">新規登録</strong>
+      <button class="btn" id="btnClose" type="button">閉じる</button>
+    </div>
+    <div class="modalBd">
+      <input type="hidden" id="cid">
+
+      <div class="grid">
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">タイトル（必須）</div>
+          <input class="field" id="title" placeholder="例）女性限定キャンペーン">
+        </div>
+
+        <div>
+          <div class="fieldLabel">種類（バッジ）</div>
+          <select class="field" id="typeSel">
+            <option value="event">イベント</option>
+            <option value="consulting">相談所</option>
+            <option value="other">その他</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="fieldLabel">開始日（必須）</div>
+          <input class="field" id="startDate" type="date">
+        </div>
+
+        <div>
+          <div class="fieldLabel">終了日（必須）</div>
+          <input class="field" id="endDate" type="date">
+        </div>
+
+        <div>
+          <div class="fieldLabel">タグ（任意）</div>
+          <input class="field" id="tag" placeholder="例）女性限定 / 割引 / 期間限定">
+        </div>
+
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">短い説明（一覧に表示）</div>
+          <input class="field" id="shortDesc" placeholder="例）2回申込で1回分の料金！">
+        </div>
+
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">詳細説明</div>
+          <textarea class="field" id="details" placeholder="例）女性通常3,000円。月2回申込で合計5,000円に。キャンセルは2回分料金をいただきます。など"></textarea>
+        </div>
+
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">条件・注意事項（任意）</div>
+          <textarea class="field" id="conditions" placeholder="例）対象：女性のみ／キャンセル：2回分請求／併用不可 など"></textarea>
+        </div>
+
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">リンク（任意）</div>
+          <input class="field" id="link" placeholder="例）https://... または ./apply.html など">
+        </div>
+
+        <div style="grid-column:1 / -1">
+          <div class="fieldLabel">画像（アップロード）</div>
+          <div class="previewRow">
+            <div class="preview" id="previewBox"><span class="smallHelp">プレビュー</span></div>
+            <div style="flex:1;min-width:220px">
+              <input class="field" id="imageFile" type="file" accept="image/*">
+              <div class="smallHelp" style="margin-top:6px">
+                画像はシートに保存（DataURL）されます。<br>
+                下の「公開画像の範囲」でトリミングしてから確定してください。<br>
+                （確定しないと前の画像のままになります）
+              </div>
+              <!-- 文言は消す -->
+              <div id="dropHint" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="cropWrap">
+            <canvas id="cropCanvas" class="cropCanvas"></canvas>
+
+            <div class="cropControls">
+              <div class="fieldLabel">公開画像の範囲（トリミング）</div>
+
+              <div class="rangeRow">
+                <span class="smallHelp">拡大</span>
+                <input id="zoomRange" type="range" min="1" max="3" step="0.01" value="1">
+                <span class="smallHelp" id="zoomVal">1.00x</span>
+              </div>
+
+              <div class="btnRow">
+                <button class="btn" type="button" id="btnCropFit">フィット</button>
+                <button class="btn" type="button" id="btnCropCenter">中央</button>
+                <button class="btn primary" type="button" id="btnCropApply">この範囲で確定</button>
+              </div>
+
+              <div class="smallHelp">
+                ・画像をドラッグして位置を調整できます<br>
+                ・拡大スライダーでズームできます<br>
+                ・「この範囲で確定」で公開用画像として保存されます
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" id="imageData">
+        </div>
+
+        <div>
+          <div class="fieldLabel">ステータス</div>
+          <select class="field" id="statusSel">
+            <option value="">通常</option>
+            <option value="hidden">非公開</option>
+            <option value="ended">終了</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="fieldLabel">更新日時</div>
+          <input class="field" id="updatedAt" disabled placeholder="自動">
+        </div>
+
+        <div>
+          <div class="fieldLabel">ID</div>
+          <input class="field" id="idView" disabled placeholder="自動採番">
+        </div>
+      </div>
+
+      <hr class="sep">
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn primary" id="btnSave" type="button">保存</button>
+        <button class="btn danger" id="btnDelete" type="button" style="display:none">削除</button>
+        <span class="meta" id="status">-</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 復元モーダル ===== -->
+<div class="modalBack" id="restoreBack" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modalHd">
+      <strong>バックアップから復元</strong>
+      <button class="btn" id="btnRestoreClose" type="button">閉じる</button>
+    </div>
+    <div class="modalBd">
+      <div class="meta" style="margin-bottom:10px">
+        DriveのバックアップJSONの <b>fileId</b> を入れて復元します。<br>
+        <span style="color:#b91c1c;font-weight:700">replace は全上書き</span> なので注意。
+      </div>
+
+      <div class="fieldLabel">Drive fileId（必須）</div>
+      <input class="field" id="restoreFileId" placeholder="例）1AbcDEFgHiJkLmnOPq..." autocomplete="off">
+
+      <div style="height:10px"></div>
+
+      <div class="fieldLabel">復元モード</div>
+      <select class="field" id="restoreMode">
+        <option value="replace">replace（全上書き）</option>
+        <option value="merge">merge（追記）</option>
+      </select>
+
+      <div style="height:10px"></div>
+
+      <div class="fieldLabel">確認（RESTORE と入力）</div>
+      <input class="field" id="restoreConfirm" placeholder="RESTORE" autocomplete="off">
+
+      <hr class="sep">
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn danger" id="btnRestoreRun" type="button">復元を実行</button>
+        <span class="meta" id="restoreStatus">-</span>
+      </div>
+
+      <div class="err" id="restoreErr" style="margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ★あなたの /exec（このURLに統一！） */
+const API_URL = "https://script.google.com/macros/s/AKfycbwiSMKMDvHIZ2l8hs9ogCPLKmX6eNPpn5jKDvHbMxwFbqVw7zGLFZIcarAsmO88D_L4/exec";
+const $ = (id)=>document.getElementById(id);
+
+let campaigns = [];
+
+/* ===== 管理キー（任意） ===== */
+const KEY_LS = "campaign_admin_key";
+let ADMIN_KEY = localStorage.getItem(KEY_LS) || "";
+
+function setAdminKey_(k){
+  ADMIN_KEY = (k || "").trim();
+  if(ADMIN_KEY) localStorage.setItem(KEY_LS, ADMIN_KEY);
+  else localStorage.removeItem(KEY_LS);
+}
+function ensureKey_(){
+  if(ADMIN_KEY) return true;
+  const k = prompt("管理キーを入力してください（任意）", "") || "";
+  setAdminKey_(k);
+  return true;
+}
+$("btnKey").onclick = ()=>{
+  const k = prompt("管理キーを入力（空で解除）", ADMIN_KEY || "") ?? ADMIN_KEY;
+  setAdminKey_(k);
+  alert(ADMIN_KEY ? "✅ 管理キーを保存しました" : "✅ 管理キーを解除しました");
+};
+
+function str(v){
+  if(v === null || v === undefined) return "";
+  if(typeof v === "string") return v;
+  try{ return String(v); }catch(_){ return ""; }
+}
+function setError(msg){ $("err").textContent = msg || ""; }
+function setStatus(msg){ $("status").textContent = msg || "-"; }
+
+function isDataImage_(v){
+  const s = str(v).trim();
+  return !!s && s.startsWith("data:image");
+}
+
+function statusLabelJP_(status){
+  const s = str(status).trim().toLowerCase();
+  if(s === "ended") return "終了";
+  if(s === "hidden") return "非公開";
+  return "";
+}
+
+function typeLabel(t){
+  const v = str(t).trim().toLowerCase();
+  if(v === "event") return "イベント";
+  if(v === "consulting") return "相談所";
+  if(v === "other") return "その他";
+  return "その他";
+}
+function typeClass(t){
+  const v = str(t).trim().toLowerCase();
+  if(v === "event") return "event";
+  if(v === "consulting") return "consulting";
+  return "other";
+}
+
+async function fetchJson(url, opt){
+  const res = await fetch(url, Object.assign({ cache:"no-store", redirect:"follow" }, opt||{}));
+  const text = await res.text();
+  if(!res.ok){
+    throw new Error(`HTTP ${res.status} ${res.statusText}\n${text.slice(0,600)}`);
+  }
+  let j;
+  try{ j = JSON.parse(text); }
+  catch(_){ throw new Error("JSONではない応答（HTML等）:\n" + text.slice(0,600)); }
+  if(j && j.ok === false && j.error) throw new Error(j.error);
+  return j;
+}
+
+/* ===== API ===== */
+async function apiList(){
+  ensureKey_();
+  const keyParam = ADMIN_KEY ? `&key=${encodeURIComponent(ADMIN_KEY)}` : "";
+  const j = await fetchJson(API_URL + "?action=list_campaigns&t=" + Date.now() + keyParam);
+  return j.campaigns || [];
+}
+async function apiUpsert(c){
+  ensureKey_();
+  return await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"upsert_campaign", key: ADMIN_KEY, campaign:c })
+  });
+}
+async function apiDelete(id){
+  ensureKey_();
+  return await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"delete_campaign", key: ADMIN_KEY, id })
+  });
+}
+async function apiBackupAll(note){
+  ensureKey_();
+  const j = await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"backup:campaigns", key: ADMIN_KEY, note: note || "" })
+  });
+  return j.backup;
+}
+async function apiRestoreAll(fileId, mode){
+  ensureKey_();
+  return await fetchJson(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({ action:"restore:campaigns", key: ADMIN_KEY, fileId, mode })
+  });
+}
+
+/* ===== 日付 ===== */
+function toDateValue(v){
+  const s = str(v).trim();
+  if(!s) return "";
+  try{
+    const d = (v instanceof Date) ? v : new Date(s);
+    if(Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const dd = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${dd}`;
+  }catch(e){ return ""; }
+}
+function fmtDateJa(v){
+  const s = str(v).trim();
+  if(!s) return "-";
+  const d = (v instanceof Date) ? v : new Date(s);
+  if(Number.isNaN(d.getTime())) return s;
+  const y=d.getFullYear(), m=d.getMonth()+1, dd=d.getDate();
+  return `${y}年${m}月${dd}日`;
+}
+function escapeHtml(s){
+  return str(s)
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function isDisplayableLink_(v){
+  const s = str(v).trim();
+  if(!s) return false;
+  if(isDataImage_(s)) return false;
+  if(s.startsWith("http://") || s.startsWith("https://")) return true;
+  if(s.startsWith("./") || s.startsWith("../") || s.startsWith("/")) return true;
+  return false;
+}
+
+/* ===== 並び替え（開始日が近い順） ===== */
+function toDateSafe(dateStr){
+  const s = str(dateStr).trim().replaceAll("/", "-");
+  if(!s) return null;
+  const d = new Date(`${s}T00:00:00`);
+  if(isNaN(d.getTime())) return null;
+  return d;
+}
+function sortBySoonest(a,b){
+  const da = toDateSafe(a.startDate);
+  const db = toDateSafe(b.startDate);
+  if(!da && !db) return 0;
+  if(!da) return 1;
+  if(!db) return -1;
+  const diff = da - db;
+  if(diff !== 0) return diff;
+  return str(a.title).localeCompare(str(b.title));
+}
+
+/* ===== 画像プレビュー（右の小窓） ===== */
+function setPreview(dataUrl){
+  const box = $("previewBox");
+  const d = str(dataUrl).trim();
+  if(!d){
+    box.innerHTML = `<span class="smallHelp">プレビュー</span>`;
+    return;
+  }
+  box.innerHTML = `<img alt="preview">`;
+  box.querySelector("img").src = d;
+}
+
+/* ===== トリミング ===== */
+let cropImg = null;
+let cropZoom = 1;
+let cropOffX = 0;
+let cropOffY = 0;
+let cropDragging = false;
+let cropDragStart = {x:0,y:0, ox:0, oy:0};
+
+const OUT_W = 900;
+const OUT_H = 560;
+const LIMIT = 49000;
+
+function setupCropCanvas_(){
+  const canvas = $("cropCanvas");
+  if(!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const cssW = rect.width;
+  const cssH = rect.height;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  drawCrop_();
+}
+function drawCrop_(){
+  const canvas = $("cropCanvas");
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  const vw = canvas.getBoundingClientRect().width;
+  const vh = canvas.getBoundingClientRect().height;
+
+  ctx.clearRect(0,0,vw,vh);
+  ctx.fillStyle = "#f3f4f6";
+  ctx.fillRect(0,0,vw,vh);
+
+  if(!cropImg){
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText("画像を選ぶと、ここで範囲を調整できます", 12, 24);
+    return;
+  }
+
+  const fit = Math.min(vw / cropImg.width, vh / cropImg.height);
+  const scale = fit * cropZoom;
+
+  const dw = cropImg.width * scale;
+  const dh = cropImg.height * scale;
+
+  const cx = (vw - dw)/2 + cropOffX;
+  const cy = (vh - dh)/2 + cropOffY;
+
+  ctx.drawImage(cropImg, cx, cy, dw, dh);
+
+  ctx.strokeStyle = "rgba(15,23,42,.25)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(6,6,vw-12,vh-12);
+}
+function setCropImageFromDataUrl_(dataUrl){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      cropImg = img;
+      cropZoom = 1;
+      cropOffX = 0;
+      cropOffY = 0;
+      $("zoomRange").value = "1";
+      $("zoomVal").textContent = "1.00x";
+      setTimeout(()=>{ setupCropCanvas_(); }, 0);
+      resolve();
+    };
+    img.onerror = ()=> reject(new Error("トリミング用画像の読み込みに失敗しました"));
+    img.src = dataUrl;
+  });
+}
+function cropFit_(){
+  cropZoom = 1;
+  cropOffX = 0;
+  cropOffY = 0;
+  $("zoomRange").value = "1";
+  $("zoomVal").textContent = "1.00x";
+  drawCrop_();
+}
+function cropCenter_(){
+  cropOffX = 0;
+  cropOffY = 0;
+  drawCrop_();
+}
+function canvasToDataURLWithinLimit_(canvas){
+  let q = 0.82;
+  let dataUrl = canvas.toDataURL("image/jpeg", q);
+
+  while(dataUrl.length > LIMIT && q > 0.20){
+    q = Math.max(0.20, q - 0.06);
+    dataUrl = canvas.toDataURL("image/jpeg", q);
+  }
+  if(dataUrl.length <= LIMIT) return dataUrl;
+
+  let scale = 0.92;
+  let w = canvas.width;
+  let h = canvas.height;
+
+  while(dataUrl.length > LIMIT && w > 320 && h > 200){
+    w = Math.max(320, Math.round(w * scale));
+    h = Math.max(200, Math.round(h * scale));
+
+    const tmp = document.createElement("canvas");
+    tmp.width = w;
+    tmp.height = h;
+
+    const tctx = tmp.getContext("2d");
+    if(!tctx) throw new Error("canvas context が取得できません（ブラウザ互換）");
+
+    tctx.fillStyle = "#fff";
+    tctx.fillRect(0,0,w,h);
+    tctx.drawImage(canvas, 0,0, canvas.width, canvas.height, 0,0, w,h);
+
+    q = Math.min(q, 0.70);
+    dataUrl = tmp.toDataURL("image/jpeg", q);
+    while(dataUrl.length > LIMIT && q > 0.20){
+      q = Math.max(0.20, q - 0.06);
+      dataUrl = tmp.toDataURL("image/jpeg", q);
+    }
+    canvas = tmp;
+  }
+
+  if(dataUrl.length > LIMIT){
+    throw new Error(`確定画像が大きすぎます（len=${dataUrl.length} / LIMIT=${LIMIT}）`);
+  }
+  return dataUrl;
+}
+function cropApply_(){
+  if(!cropImg){
+    alert("先に画像を選んでください");
+    return;
+  }
+
+  const view = $("cropCanvas");
+  const vw = view.getBoundingClientRect().width;
+  const vh = view.getBoundingClientRect().height;
+
+  const fit = Math.min(vw / cropImg.width, vh / cropImg.height);
+  const scale = fit * cropZoom;
+
+  const dw = cropImg.width * scale;
+  const dh = cropImg.height * scale;
+  const cx = (vw - dw)/2 + cropOffX;
+  const cy = (vh - dh)/2 + cropOffY;
+
+  const sx = (0 - cx) / scale;
+  const sy = (0 - cy) / scale;
+  const sw = vw / scale;
+  const sh = vh / scale;
+
+  const out = document.createElement("canvas");
+  out.width = OUT_W;
+  out.height = OUT_H;
+
+  const octx = out.getContext("2d");
+  if(!octx){
+    const msg = "画像の確定に失敗：canvas context が取得できません（ブラウザ互換）";
+    setError(msg);
+    alert(msg);
+    return;
+  }
+
+  octx.fillStyle = "#ffffff";
+  octx.fillRect(0,0,OUT_W,OUT_H);
+  octx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H);
+
+  try{
+    const dataUrl = canvasToDataURLWithinLimit_(out);
+    $("imageData").value = dataUrl;
+    setPreview(dataUrl);
+    setStatus(`画像を確定しました（len=${dataUrl.length}）`);
+    setError("");
+  }catch(err){
+    const msg = "画像の確定に失敗： " + (err.message || err);
+    setError(msg);
+    alert(msg);
+  }
+}
+function bindCropEvents_(){
+  const canvas = $("cropCanvas");
+  if(!canvas) return;
+
+  const getPoint = (ev)=>{
+    const r = canvas.getBoundingClientRect();
+    const t = ev.touches ? ev.touches[0] : ev;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  };
+
+  const down = (ev)=>{
+    if(!cropImg) return;
+    cropDragging = true;
+    const p = getPoint(ev);
+    cropDragStart = { x:p.x, y:p.y, ox:cropOffX, oy:cropOffY };
+    ev.preventDefault();
+  };
+  const move = (ev)=>{
+    if(!cropDragging) return;
+    const p = getPoint(ev);
+    cropOffX = cropDragStart.ox + (p.x - cropDragStart.x);
+    cropOffY = cropDragStart.oy + (p.y - cropDragStart.y);
+    drawCrop_();
+    ev.preventDefault();
+  };
+  const up = ()=>{ cropDragging = false; };
+
+  canvas.addEventListener("mousedown", down);
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+
+  canvas.addEventListener("touchstart", down, {passive:false});
+  window.addEventListener("touchmove", move, {passive:false});
+  window.addEventListener("touchend", up);
+
+  $("zoomRange").addEventListener("input", ()=>{
+    cropZoom = Number($("zoomRange").value);
+    $("zoomVal").textContent = cropZoom.toFixed(2) + "x";
+    drawCrop_();
+  });
+
+  $("btnCropFit").onclick = cropFit_;
+  $("btnCropCenter").onclick = cropCenter_;
+  $("btnCropApply").onclick = cropApply_;
+}
+
+/* ===== 画像読み込み ===== */
+async function readFileAsDataUrl_(file){
+  return await new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(String(r.result||""));
+    r.onerror = ()=> reject(new Error("FileReader failed"));
+    r.readAsDataURL(file);
+  });
+}
+async function loadImageToCrop_(file){
+  const raw = await readFileAsDataUrl_(file);
+  await setCropImageFromDataUrl_(raw);
+  setError("");
+  setStatus("画像を読み込みました。範囲を調整して「この範囲で確定」を押してください。");
+}
+$("imageFile").addEventListener("change", async (e)=>{
+  const file = e.target.files && e.target.files[0];
+  if(!file){
+    cropImg = null;
+    drawCrop_();
+    $("imageData").value = "";
+    setPreview("");
+    return;
+  }
+  try{
+    await loadImageToCrop_(file);
+  }catch(err){
+    cropImg = null;
+    drawCrop_();
+    setError("画像の読み込みに失敗： " + (err.message || err));
+  }
+});
+
+/* ===== ドラッグ&ドロップ（文言なしで機能だけ維持） ===== */
+function bindDrop_(){
+  const dropCore = async (e)=>{
+    e.preventDefault();
+    const dt = e.dataTransfer;
+    if(!dt || !dt.files || !dt.files[0]) return;
+    const file = dt.files[0];
+    if(!file.type || !file.type.startsWith("image/")){
+      alert("画像ファイルをドロップしてください");
+      return;
+    }
+    try{
+      const input = $("imageFile");
+      try{
+        const dT = new DataTransfer();
+        dT.items.add(file);
+        input.files = dT.files;
+      }catch(_){}
+      await loadImageToCrop_(file);
+    }catch(err){
+      setError("画像の読み込みに失敗： " + (err.message || err));
+    }
+  };
+  window.addEventListener("dragover",(e)=>e.preventDefault());
+  window.addEventListener("drop", dropCore);
+}
+
+/* ===== UI ===== */
+function openModal(mode, c){
+  $("modalBack").style.display="flex";
+  $("modalBack").setAttribute("aria-hidden","false");
+  setStatus("-"); setError("");
+
+  setTimeout(()=>{ setupCropCanvas_(); }, 0);
+
+  if(mode==="new"){
+    $("modalTitle").textContent="新規登録";
+    $("cid").value="";
+    $("title").value="";
+    $("typeSel").value="event";
+    $("startDate").value="";
+    $("endDate").value="";
+    $("tag").value="";
+    $("shortDesc").value="";
+    $("details").value="";
+    $("conditions").value="";
+    $("link").value="";
+    $("imageFile").value="";
+    $("imageData").value="";
+    setPreview("");
+    $("statusSel").value="";
+    $("updatedAt").value="";
+    $("idView").value="（自動）";
+    $("btnDelete").style.display="none";
+
+    cropImg = null;
+    cropZoom = 1; cropOffX=0; cropOffY=0;
+    $("zoomRange").value = "1";
+    $("zoomVal").textContent = "1.00x";
+    drawCrop_();
+
+  }else{
+    $("modalTitle").textContent="編集";
+    $("cid").value=str(c.id);
+    $("title").value=str(c.title);
+
+    const t = str(c.type).trim() || "other";
+    $("typeSel").value = (t==="event"||t==="consulting"||t==="other") ? t : "other";
+
+    $("startDate").value=toDateValue(c.startDate);
+    $("endDate").value=toDateValue(c.endDate);
+    $("tag").value=str(c.tag);
+    $("shortDesc").value=str(c.shortDesc);
+    $("details").value=str(c.details);
+    $("conditions").value=str(c.conditions);
+
+    const rawLink = str(c.link).trim();
+    const rawImg  = str(c.imageData).trim();
+    const fixedImg  = rawImg || (isDataImage_(rawLink) ? rawLink : "");
+    const fixedLink = isDataImage_(rawLink) ? "" : rawLink;
+
+    $("link").value = fixedLink;
+
+    $("imageFile").value="";
+    $("imageData").value=fixedImg;
+    setPreview(fixedImg);
+
+    cropImg = null;
+    cropZoom = 1; cropOffX=0; cropOffY=0;
+    $("zoomRange").value = "1";
+    $("zoomVal").textContent = "1.00x";
+
+    if(fixedImg && fixedImg.startsWith("data:image")){
+      setCropImageFromDataUrl_(fixedImg).catch(()=>{ cropImg=null; drawCrop_(); });
+    }else{
+      drawCrop_();
+    }
+
+    $("statusSel").value=str(c.status);
+    $("updatedAt").value=str(c.updatedAt);
+    $("idView").value=str(c.id);
+
+    $("btnDelete").style.display="inline-flex";
+  }
+}
+function closeModal(){
+  $("modalBack").style.display="none";
+  $("modalBack").setAttribute("aria-hidden","true");
+}
+$("btnClose").onclick = closeModal;
+$("modalBack").addEventListener("click",(e)=>{
+  if(e.target === $("modalBack")) closeModal();
+});
+
+$("btnNew").onclick = ()=> openModal("new");
+$("btnReload").onclick = ()=> refreshList();
+
+/* ESCで閉じる */
+window.addEventListener("keydown",(e)=>{
+  if(e.key !== "Escape") return;
+  if($("modalBack").style.display === "flex") closeModal();
+  if($("restoreBack").style.display === "flex") closeRestoreModal();
+});
+
+/* ===== ステータスをバッジ化 ===== */
+function statusBadgeHtml_(status){
+  const s = str(status).trim().toLowerCase();
+  if(s === "hidden") return `<span class="badge warn">🚫 非公開</span>`;
+  if(s === "ended") return `<span class="badge dng">🏁 終了</span>`;
+  return `<span class="badge ok">✅ 公開</span>`;
+}
+
+/* ワンタップでステータス切替 */
+async function quickToggleStatus_(id, nextStatus){
+  const c = campaigns.find(x=>str(x.id)===str(id));
+  if(!c) return;
+  const updated = Object.assign({}, c, { status: nextStatus });
+
+  campaigns = campaigns.map(x=> str(x.id)===str(id) ? updated : x);
+  render();
+
+  try{
+    await apiUpsert(updated);
+    setError("");
+  }catch(err){
+    setError("更新に失敗： " + (err.message || err));
+    await refreshList();
+  }
+}
+
+/* ===== レンダリング ===== */
+function render(){
+  const q = str($("q").value).trim().toLowerCase();
+
+  const sorted = [...campaigns].sort(sortBySoonest);
+  const list = q
+    ? sorted.filter(c=>{
+        const s = `${str(c.title)} ${typeLabel(c.type)} ${str(c.type)} ${str(c.tag)} ${str(c.shortDesc)} ${str(c.details)} ${str(c.conditions)}`.toLowerCase();
+        return s.includes(q);
+      })
+    : sorted;
+
+  $("count").textContent = `表示 ${list.length}件 / 全${campaigns.length}件`;
+
+  if(!list.length){
+    $("list").innerHTML = `<div class="meta">キャンペーンがありません</div>`;
+    return;
+  }
+
+  $("list").innerHTML = list.map(c=>{
+    const period = `${fmtDateJa(c.startDate)} 〜 ${fmtDateJa(c.endDate)}`;
+    const imgData = str(c.imageData).trim();
+    const hasImg = imgData.startsWith("data:image");
+
+    const stLabel = statusLabelJP_(c.status);
+    const statusText = stLabel ? `（${escapeHtml(stLabel)}）` : "";
+
+    const tLabel = typeLabel(c.type);
+    const tCls = typeClass(c.type);
+
+    const condHtml = str(c.conditions).trim()
+      ? `<div class="k">条件</div><div class="v">${escapeHtml(c.conditions)}</div>`
+      : "";
+
+    const linkStr = str(c.link).trim();
+    const linkHtml = isDisplayableLink_(linkStr)
+      ? `<div class="k">リンク</div><div class="v"><a href="${escapeHtml(linkStr)}" target="_blank" rel="noopener">${escapeHtml(linkStr)}</a></div>`
+      : "";
+
+    const noneHtml = (!str(c.conditions).trim() && !isDisplayableLink_(linkStr))
+      ? `<div class="v" style="grid-column:1/-1;color:var(--muted)">未設定</div>`
+      : "";
+
+    const thumb = hasImg
+      ? `<div class="thumb"><img alt="thumb" src="${escapeHtml(imgData)}"></div>`
+      : `<div class="thumb"><span>no image</span></div>`;
+
+    const stBadge = statusBadgeHtml_(c.status);
+
+    const toggleHiddenLabel = (str(c.status).trim().toLowerCase()==="hidden") ? "公開にする" : "非公開にする";
+    const toggleHiddenNext  = (str(c.status).trim().toLowerCase()==="hidden") ? "" : "hidden";
+
+    const toggleEndedLabel  = (str(c.status).trim().toLowerCase()==="ended") ? "通常に戻す" : "終了にする";
+    const toggleEndedNext   = (str(c.status).trim().toLowerCase()==="ended") ? "" : "ended";
+
+    /* ✅ ここが壊れていたので修正（テンプレ文字列を正しく閉じる） */
+    const bigImageHtml = hasImg
+      ? `
+        <div class="boxText" style="margin-bottom:8px">登録済み（編集画面でトリミング変更できます）</div>
+        <div style="width:100%;max-width:520px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff">
+          <img alt="image" src="${escapeHtml(imgData)}" style="display:block;width:100%;height:auto">
+        </div>
+      `
+      : `<div class="boxText" style="color:var(--muted)">未設定</div>`;
+
+    return `
+    <details class="item">
+      <summary class="sum">
+        <div class="sumLeft">
+          ${thumb}
+          <div class="head">
+            <div class="title">${escapeHtml(c.title||"-")} ${statusText}</div>
+            <div class="metaLine">
+              <span class="badge type ${tCls}">🏷️ ${escapeHtml(tLabel)}</span>
+              <span class="badge pri">📅 ${escapeHtml(period)}</span>
+              ${stBadge}
+              ${str(c.tag).trim() ? `<span class="badge">🔖 ${escapeHtml(c.tag)}</span>` : ``}
+              ${str(c.shortDesc).trim() ? `<span class="badge ok">✨ ${escapeHtml(c.shortDesc)}</span>` : ``}
+            </div>
+          </div>
+        </div>
+        <div class="chev">▼</div>
+      </summary>
+
+      <div class="body">
+        <div class="bodyInner">
+          <div class="bodyLeft">
+            <div class="sections">
+              <div class="box">
+                <p class="boxTitle">詳細</p>
+                <div class="boxText">${escapeHtml(str(c.details).trim() || "（未設定）")}</div>
+              </div>
+
+              <div class="box">
+                <p class="boxTitle">条件・リンク</p>
+                <div class="kv">
+                  <div class="k">種類</div><div class="v">${escapeHtml(tLabel)}</div>
+                  ${condHtml}
+                  ${linkHtml}
+                  ${noneHtml}
+                </div>
+              </div>
+
+              <div class="box">
+                <p class="boxTitle">画像</p>
+                ${bigImageHtml}
+              </div>
+
+              <div class="meta" style="margin-top:2px">
+                更新：${escapeHtml(c.updatedAt||"-")}
+              </div>
+            </div>
+          </div>
+
+          <div class="bodyActions">
+            <button class="btn" data-edit="${escapeHtml(c.id)}" type="button">編集</button>
+            <button class="btn" data-copy="${escapeHtml(c.id)}" type="button">コピー</button>
+
+            <button class="btn" data-toggle-hidden="${escapeHtml(c.id)}" data-next="${escapeHtml(toggleHiddenNext)}" type="button">
+              ${escapeHtml(toggleHiddenLabel)}
+            </button>
+            <button class="btn" data-toggle-ended="${escapeHtml(c.id)}" data-next="${escapeHtml(toggleEndedNext)}" type="button">
+              ${escapeHtml(toggleEndedLabel)}
+            </button>
+
+            <button class="btn danger" data-del="${escapeHtml(c.id)}" type="button">削除</button>
+          </div>
+        </div>
+      </div>
+    </details>
+    `;
+  }).join("");
+
+  document.querySelectorAll("[data-edit]").forEach(b=>{
+    b.onclick = ()=>{
+      const c = campaigns.find(x=>str(x.id)===str(b.dataset.edit));
+      if(c) openModal("edit", c);
+    };
+  });
+
+  document.querySelectorAll("[data-copy]").forEach(b=>{
+    b.onclick = ()=>{
+      const c = campaigns.find(x=>str(x.id)===str(b.dataset.copy));
+      if(!c) return;
+      openModal("new");
+      $("title").value = str(c.title);
+
+      const t = str(c.type).trim() || "other";
+      $("typeSel").value = (t==="event"||t==="consulting"||t==="other") ? t : "other";
+
+      $("startDate").value = toDateValue(c.startDate);
+      $("endDate").value = toDateValue(c.endDate);
+      $("tag").value = str(c.tag);
+      $("shortDesc").value = str(c.shortDesc);
+      $("details").value = str(c.details);
+      $("conditions").value = str(c.conditions);
+
+      const rawLink = str(c.link).trim();
+      $("link").value = isDataImage_(rawLink) ? "" : rawLink;
+
+      const fixedImg = str(c.imageData).trim() || (isDataImage_(rawLink) ? rawLink : "");
+      $("imageData").value = fixedImg;
+      setPreview(fixedImg);
+
+      cropImg = null;
+      if(fixedImg && fixedImg.startsWith("data:image")){
+        setCropImageFromDataUrl_(fixedImg).catch(()=>{ cropImg=null; drawCrop_(); });
+      }else{
+        drawCrop_();
+      }
+
+      $("statusSel").value = str(c.status);
+    };
+  });
+
+  document.querySelectorAll("[data-toggle-hidden]").forEach(b=>{
+    b.onclick = async ()=>{
+      const id = str(b.dataset.toggleHidden).trim();
+      const next = str(b.dataset.next).trim();
+      await quickToggleStatus_(id, next);
+    };
+  });
+
+  document.querySelectorAll("[data-toggle-ended]").forEach(b=>{
+    b.onclick = async ()=>{
+      const id = str(b.dataset.toggleEnded).trim();
+      const next = str(b.dataset.next).trim();
+      await quickToggleStatus_(id, next);
+    };
+  });
+
+  document.querySelectorAll("[data-del]").forEach(b=>{
+    b.onclick = async ()=>{
+      const id = str(b.dataset.del).trim();
+      const c = campaigns.find(x=>str(x.id)===id);
+      if(!c) return;
+
+      if(!confirm(`削除しますか？\n\n${str(c.title)}`)) return;
+
+      try{
+        setError("");
+        b.textContent = "削除中…";
+        b.disabled = true;
+
+        campaigns = campaigns.filter(x => str(x.id) !== id);
+        render();
+
+        await apiDelete(id);
+        setTimeout(refreshList, 800);
+
+      }catch(err){
+        setError("削除に失敗： " + (err.message || err));
+        await refreshList();
+      }
+    };
+  });
+}
+
+$("q").oninput = render;
+
+async function refreshList(){
+  campaigns = await apiList();
+  campaigns.sort(sortBySoonest);
+  $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
+  render();
+}
+
+/* 保存 */
+$("btnSave").onclick = async ()=>{
+  setError("");
+  try{
+    const title = str($("title").value).trim();
+    const startDate = str($("startDate").value).trim();
+    const endDate = str($("endDate").value).trim();
+
+    if(!title){ alert("タイトルは必須です"); return; }
+    if(!startDate){ alert("開始日は必須です"); return; }
+    if(!endDate){ alert("終了日は必須です"); return; }
+    if(new Date(startDate) > new Date(endDate)){
+      alert("開始日が終了日より後になっています。日付を確認してください。");
+      return;
+    }
+
+    if($("imageFile").files && $("imageFile").files[0] && !str($("imageData").value).trim()){
+      if(!confirm("画像が未確定です。\n「この範囲で確定」を押してから保存するのがおすすめです。\nこのまま保存しますか？")){
+        return;
+      }
+    }
+
+    setStatus("保存中…");
+    $("btnSave").disabled = true;
+
+    let safeLink = str($("link").value).trim();
+    if(isDataImage_(safeLink)) safeLink = "";
+
+    const c = {
+      id: str($("cid").value).trim(),
+      title,
+      type: str($("typeSel").value).trim() || "other",
+      startDate,
+      endDate,
+      tag: str($("tag").value).trim(),
+      shortDesc: str($("shortDesc").value).trim(),
+      details: str($("details").value).trim(),
+      conditions: str($("conditions").value).trim(),
+      link: safeLink,
+      imageData: str($("imageData").value),
+      status: str($("statusSel").value).trim()
+    };
+
+    const r = await apiUpsert(c);
+    if(r && r.ok === false){
+      throw new Error(r.error || "保存に失敗しました（サーバー戻り ok:false）");
+    }
+
+    setStatus("保存しました");
+    closeModal();
+
+    await refreshList();
+    setTimeout(refreshList, 700);
+
+  }catch(err){
+    setStatus("-");
+    setError("保存に失敗： " + (err.message || err));
+  }finally{
+    $("btnSave").disabled = false;
+  }
+};
+
+/* 削除（モーダル内） */
+$("btnDelete").onclick = async ()=>{
+  setError("");
+  const id = str($("cid").value).trim();
+  if(!id) return;
+  if(!confirm("削除しますか？")) return;
+
+  try{
+    setStatus("削除中…");
+    $("btnDelete").disabled = true;
+
+    await apiDelete(id);
+    await refreshList();
+
+    setStatus("削除しました");
+    closeModal();
+  }catch(err){
+    setStatus("-");
+    setError("削除に失敗： " + (err.message || err));
+  }finally{
+    $("btnDelete").disabled = false;
+  }
+};
+
+/* バックアップ / 復元 */
+function setRestoreError(msg){ $("restoreErr").textContent = msg || ""; }
+function setRestoreStatus(msg){ $("restoreStatus").textContent = msg || "-"; }
+
+function openRestoreModal(){
+  $("restoreBack").style.display="flex";
+  $("restoreBack").setAttribute("aria-hidden","false");
+  $("restoreFileId").value = "";
+  $("restoreMode").value = "replace";
+  $("restoreConfirm").value = "";
+  setRestoreStatus("-");
+  setRestoreError("");
+}
+function closeRestoreModal(){
+  $("restoreBack").style.display="none";
+  $("restoreBack").setAttribute("aria-hidden","true");
+}
+$("btnRestoreClose").onclick = closeRestoreModal;
+$("restoreBack").addEventListener("click",(e)=>{
+  if(e.target === $("restoreBack")) closeRestoreModal();
+});
+
+$("btnBackup").onclick = async ()=>{
+  setError("");
+  try{
+    const note = prompt("バックアップメモ（任意）", "") || "";
+    if(!confirm("キャンペーンをバックアップしてDriveに保存します。よろしいですか？")) return;
+
+    $("btnBackup").disabled = true;
+    $("btnBackup").textContent = "バックアップ中…";
+
+    const b = await apiBackupAll(note);
+    alert(`✅ バックアップ完了\n${b.name}`);
+  }catch(err){
+    setError("バックアップに失敗： " + (err.message || err));
+  }finally{
+    $("btnBackup").disabled = false;
+    $("btnBackup").textContent = "バックアップ";
+  }
+};
+
+$("btnRestore").onclick = ()=> openRestoreModal();
+
+$("btnRestoreRun").onclick = async ()=>{
+  setRestoreError("");
+  try{
+    const fileId = str($("restoreFileId").value).trim();
+    const mode = str($("restoreMode").value).trim();
+    const confirmText = str($("restoreConfirm").value).trim();
+
+    if(!fileId){ setRestoreError("fileId を入力してください"); return; }
+    if(confirmText !== "RESTORE"){ setRestoreError("確認欄に RESTORE と入力してください"); return; }
+
+    if(mode === "replace"){
+      if(!confirm("replace（全上書き）で復元します。本当に実行しますか？")) return;
+    }else{
+      if(!confirm("merge（追記）で復元します。重複に注意。実行しますか？")) return;
+    }
+
+    setRestoreStatus("復元中…");
+    $("btnRestoreRun").disabled = true;
+
+    await apiRestoreAll(fileId, mode);
+
+    setRestoreStatus("復元完了。再読み込みします…");
+    await refreshList();
+
+    alert("復元が完了しました。");
+    closeRestoreModal();
+  }catch(err){
+    setRestoreStatus("-");
+    setRestoreError("復元に失敗： " + (err.message || err));
+  }finally{
+    $("btnRestoreRun").disabled = false;
+  }
+};
+
+/* 起動 */
+window.addEventListener("load", ()=>{
+  bindCropEvents_();
+  setupCropCanvas_();
+  bindDrop_();
+});
+
+window.addEventListener("resize", ()=>{
+  setTimeout(setupCropCanvas_, 0);
+});
+
+(async()=>{
+  try{
+    setError("");
+    await refreshList();
+  }catch(err){
+    setError("読み込みに失敗： " + (err.message || err));
+  }
+})();
+</script>
+
+</body>
+</html>
