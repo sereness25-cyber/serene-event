@@ -3,6 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+<!-- Google Analytics 4（管理画面：page_view は送信しない） -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-L5FK44CKD0"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  // 🚫 管理画面なので page_view を送らない
+  gtag('config', 'G-L5FK44CKD0', {
+    send_page_view: false
+  });
+</script>
+
 <title>キャンペーン管理</title>
 
 <style>
@@ -101,6 +115,13 @@ details[open] .chev{transform:rotate(180deg);}
 .badge.type.consulting{ border-color:rgba(16,185,129,.35); background:rgba(16,185,129,.10); color:#065f46; }
 .badge.type.other{ border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.12); color:#92400e; }
 
+/* ✅ 計測バッジ */
+.badge.count{
+  border-color:rgba(2,132,199,.30);
+  background:rgba(2,132,199,.08);
+  color:#075985;
+}
+
 .sections{ margin-top:10px; display:flex; flex-direction:column; gap:10px; }
 .box{ border:1px solid var(--line); background:#fff; border-radius:12px; padding:10px 12px; }
 .boxTitle{
@@ -184,7 +205,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
   width:160px;height:110px;border-radius:12px;border:1px solid var(--line);
   background:#f3f4f6; overflow:hidden; display:flex;align-items:center;justify-content:center;
 }
-/* ✅ 縦画像でも比率維持しつつ全体表示（切れない） */
+/* ✅ 縦画像でも比率維持しつつ全体表示 */
 .preview img{
   width:100%;
   height:100%;
@@ -334,7 +355,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
                 下の「公開画像の範囲」でトリミングしてから確定してください。<br>
                 （確定しないと前の画像のままになります）
               </div>
-              <!-- 文言は消す -->
               <div id="dropHint" style="display:none"></div>
             </div>
           </div>
@@ -446,6 +466,8 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwiSMKMDvHIZ2l8hs9ogCPL
 const $ = (id)=>document.getElementById(id);
 
 let campaigns = [];
+/* ✅ 追加：キャンペーンごとの計測数（{[id]: number}） */
+let campaignCounts = {};
 
 /* ===== 管理キー（任意） ===== */
 const KEY_LS = "campaign_admin_key";
@@ -522,6 +544,22 @@ async function apiList(){
   const j = await fetchJson(API_URL + "?action=list_campaigns&t=" + Date.now() + keyParam);
   return j.campaigns || [];
 }
+
+/* ✅ 追加：計測数の一覧を取得（サーバー側に action を追加してね）
+   期待する戻り例：{ ok:true, counts: { "123": 10, "124": 3 } }
+   ※未実装の場合でも落ちないように 0 扱いにします。
+*/
+async function apiCounts(){
+  ensureKey_();
+  const keyParam = ADMIN_KEY ? `&key=${encodeURIComponent(ADMIN_KEY)}` : "";
+  try{
+    const j = await fetchJson(API_URL + "?action=list_campaign_counts&t=" + Date.now() + keyParam);
+    return (j && j.counts) ? j.counts : {};
+  }catch(_e){
+    return {};
+  }
+}
+
 async function apiUpsert(c){
   ensureKey_();
   return await fetchJson(API_URL,{
@@ -888,7 +926,7 @@ $("imageFile").addEventListener("change", async (e)=>{
   }
 });
 
-/* ===== ドラッグ&ドロップ（文言なしで機能だけ維持） ===== */
+/* ===== ドラッグ&ドロップ（機能のみ） ===== */
 function bindDrop_(){
   const dropCore = async (e)=>{
     e.preventDefault();
@@ -920,7 +958,6 @@ function openModal(mode, c){
   $("modalBack").style.display="flex";
   $("modalBack").setAttribute("aria-hidden","false");
   setStatus("-"); setError("");
-
   setTimeout(()=>{ setupCropCanvas_(); }, 0);
 
   if(mode==="new"){
@@ -948,7 +985,6 @@ function openModal(mode, c){
     $("zoomRange").value = "1";
     $("zoomVal").textContent = "1.00x";
     drawCrop_();
-
   }else{
     $("modalTitle").textContent="編集";
     $("cid").value=str(c.id);
@@ -1038,6 +1074,14 @@ async function quickToggleStatus_(id, nextStatus){
   }
 }
 
+/* ✅ 計測数を安全に取り出す */
+function getCountById_(id){
+  const key = str(id).trim();
+  const v = campaignCounts && Object.prototype.hasOwnProperty.call(campaignCounts, key) ? campaignCounts[key] : 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /* ===== レンダリング ===== */
 function render(){
   const q = str($("q").value).trim().toLowerCase();
@@ -1045,7 +1089,8 @@ function render(){
   const sorted = [...campaigns].sort(sortBySoonest);
   const list = q
     ? sorted.filter(c=>{
-        const s = `${str(c.title)} ${typeLabel(c.type)} ${str(c.type)} ${str(c.tag)} ${str(c.shortDesc)} ${str(c.details)} ${str(c.conditions)}`.toLowerCase();
+        const count = getCountById_(c.id);
+        const s = `${str(c.title)} ${typeLabel(c.type)} ${str(c.type)} ${str(c.tag)} ${str(c.shortDesc)} ${str(c.details)} ${str(c.conditions)} ${count}`.toLowerCase();
         return s.includes(q);
       })
     : sorted;
@@ -1093,7 +1138,6 @@ function render(){
     const toggleEndedLabel  = (str(c.status).trim().toLowerCase()==="ended") ? "通常に戻す" : "終了にする";
     const toggleEndedNext   = (str(c.status).trim().toLowerCase()==="ended") ? "" : "ended";
 
-    /* ✅ ここが壊れていたので修正（テンプレ文字列を正しく閉じる） */
     const bigImageHtml = hasImg
       ? `
         <div class="boxText" style="margin-bottom:8px">登録済み（編集画面でトリミング変更できます）</div>
@@ -1102,6 +1146,8 @@ function render(){
         </div>
       `
       : `<div class="boxText" style="color:var(--muted)">未設定</div>`;
+
+    const cnt = getCountById_(c.id);
 
     return `
     <details class="item">
@@ -1114,6 +1160,7 @@ function render(){
               <span class="badge type ${tCls}">🏷️ ${escapeHtml(tLabel)}</span>
               <span class="badge pri">📅 ${escapeHtml(period)}</span>
               ${stBadge}
+              <span class="badge count">📊 計測 ${cnt}</span>
               ${str(c.tag).trim() ? `<span class="badge">🔖 ${escapeHtml(c.tag)}</span>` : ``}
               ${str(c.shortDesc).trim() ? `<span class="badge ok">✨ ${escapeHtml(c.shortDesc)}</span>` : ``}
             </div>
@@ -1126,6 +1173,18 @@ function render(){
         <div class="bodyInner">
           <div class="bodyLeft">
             <div class="sections">
+
+              <div class="box">
+                <p class="boxTitle">計測</p>
+                <div class="kv">
+                  <div class="k">計測数</div><div class="v"><b>${cnt}</b></div>
+                  <div class="k">ID</div><div class="v">${escapeHtml(str(c.id)||"-")}</div>
+                </div>
+                <div class="smallHelp" style="margin-top:6px">
+                  ※計測数はサーバー側の <code>action=list_campaign_counts</code> の結果を表示します。
+                </div>
+              </div>
+
               <div class="box">
                 <p class="boxTitle">詳細</p>
                 <div class="boxText">${escapeHtml(str(c.details).trim() || "（未設定）")}</div>
@@ -1247,7 +1306,6 @@ function render(){
 
         await apiDelete(id);
         setTimeout(refreshList, 800);
-
       }catch(err){
         setError("削除に失敗： " + (err.message || err));
         await refreshList();
@@ -1259,7 +1317,10 @@ function render(){
 $("q").oninput = render;
 
 async function refreshList(){
-  campaigns = await apiList();
+  const [list, counts] = await Promise.all([apiList(), apiCounts()]);
+  campaigns = list || [];
+  campaignCounts = counts || {};
+
   campaigns.sort(sortBySoonest);
   $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
   render();
@@ -1318,7 +1379,6 @@ $("btnSave").onclick = async ()=>{
 
     await refreshList();
     setTimeout(refreshList, 700);
-
   }catch(err){
     setStatus("-");
     setError("保存に失敗： " + (err.message || err));
@@ -1449,5 +1509,6 @@ window.addEventListener("resize", ()=>{
 })();
 </script>
 
+</div>
 </body>
 </html>
