@@ -449,6 +449,20 @@
       .replaceAll('"',"&quot;").replaceAll("'","&#039;");
   }
 
+  /* ✅ 追加：詳細文をURLリンク化（http/httpsのみ） */
+  function linkify_(text){
+    const s = str(text || "");
+    const escaped = escapeHtml(s);
+    const urlRe = /https?:\/\/[^\s<>"']+/g;
+
+    return escaped.replace(urlRe, (url)=>{
+      const m = url.match(/^(.*?)([)\]\}.,、。]+)?$/);
+      const clean = m ? m[1] : url;
+      const tail  = (m && m[2]) ? m[2] : "";
+      return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>${tail}`;
+    });
+  }
+
   function typeNorm(t){
     const v = str(t).trim().toLowerCase();
     if(v === "event") return "event";
@@ -611,7 +625,9 @@
       : ``;
 
     const details = str(c.details).trim() || str(c.shortDesc).trim();
-    $("modalDetails").innerText = details || "（詳細は準備中です）";
+
+    /* ✅ 変更：innerText → innerHTML（URLだけリンク化） */
+    $("modalDetails").innerHTML = linkify_(details || "（詳細は準備中です）");
 
     const conditions = str(c.conditions).trim();
     const link = str(c.link).trim();

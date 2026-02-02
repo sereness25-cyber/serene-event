@@ -469,23 +469,36 @@ let campaigns = [];
 /* ✅ 追加：キャンペーンごとの計測数（{[id]: number}） */
 let campaignCounts = {};
 
-/* ===== 管理キー（任意） ===== */
+/* ===== 管理キー（1回だけ / 初期値を固定） ===== */
 const KEY_LS = "campaign_admin_key";
-let ADMIN_KEY = localStorage.getItem(KEY_LS) || "";
+const DEFAULT_ADMIN_KEY = "kei591117";
+
+/* ✅ 初期値：ローカルに保存があればそれ、なければ DEFAULT */
+let ADMIN_KEY = localStorage.getItem(KEY_LS) || DEFAULT_ADMIN_KEY;
+
+/* ✅ prompt をこのページ内で1回だけにする */
+let KEY_PROMPTED = false;
 
 function setAdminKey_(k){
   ADMIN_KEY = (k || "").trim();
   if(ADMIN_KEY) localStorage.setItem(KEY_LS, ADMIN_KEY);
   else localStorage.removeItem(KEY_LS);
 }
+
 function ensureKey_(){
   if(ADMIN_KEY) return true;
-  const k = prompt("管理キーを入力してください（任意）", "") || "";
+
+  /* ここに来るのは、キーが空のときだけ */
+  if(KEY_PROMPTED) return true;  // ✅ 2回目以降は聞かない
+  KEY_PROMPTED = true;
+
+  const k = prompt("管理キーを入力してください", "") || "";
   setAdminKey_(k);
   return true;
 }
+
 $("btnKey").onclick = ()=>{
-  const k = prompt("管理キーを入力（空で解除）", ADMIN_KEY || "") ?? ADMIN_KEY;
+  const k = prompt("管理キーを入力（空で解除）", ADMIN_KEY || DEFAULT_ADMIN_KEY) ?? ADMIN_KEY;
   setAdminKey_(k);
   alert(ADMIN_KEY ? "✅ 管理キーを保存しました" : "✅ 管理キーを解除しました");
 };
@@ -619,6 +632,24 @@ function escapeHtml(s){
   return str(s)
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
     .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+function linkify_(text){
+  const s = str(text || "");
+  // まず全部エスケープして安全にしてから、URLだけリンク化
+  const escaped = escapeHtml(s);
+
+  // http/https のURLだけをリンクにする（末尾の句読点はなるべく外す）
+  const urlRe = /https?:\/\/[^\s<>"']+/g;
+
+  return escaped.replace(urlRe, (url)=>{
+    // 末尾の ) ] } . , 、 。 ) などをリンク外に出す
+    const m = url.match(/^(.*?)([)\]\}.,、。]+)?$/);
+    const clean = m ? m[1] : url;
+    const tail  = (m && m[2]) ? m[2] : "";
+
+    return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>${tail}`;
+  });
 }
 function isDisplayableLink_(v){
   const s = str(v).trim();
@@ -1187,7 +1218,7 @@ function render(){
 
               <div class="box">
                 <p class="boxTitle">詳細</p>
-                <div class="boxText">${escapeHtml(str(c.details).trim() || "（未設定）")}</div>
+                <div class="boxText">${linkify_(str(c.details).trim() || "（未設定）")}</div>
               </div>
 
               <div class="box">
