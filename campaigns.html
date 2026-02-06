@@ -90,7 +90,6 @@
       white-space:pre-wrap;
     }
 
-    /* ✅ フィルタ（バッジ）行 */
     .toolbar{
       max-width:1100px;
       margin:0 auto 14px;
@@ -107,7 +106,6 @@
       align-items:center;
     }
 
-    /* ✅ 種類バッジ（カード内＋フィルタにも使う） */
     .badge{
       display:inline-flex;
       align-items:center;
@@ -162,7 +160,6 @@
       outline:none;
     }
 
-    /* ✅ ここを改善：1件でも横に伸びすぎず、3列になりやすい */
     .campaign-list{
       max-width:1100px;
       margin:0 auto;
@@ -207,7 +204,6 @@
 
     .campaign-card .content { padding: 16px; }
 
-    /* ✅ タイトル行（左：タイトル / 右：種類バッジ） */
     .titleRow{
       display:flex;
       align-items:flex-start;
@@ -247,7 +243,6 @@
       font-size: 14px;
     }
 
-    /* モーダル */
     #modal {
       display: none;
       position: fixed;
@@ -270,13 +265,6 @@
       box-shadow: var(--shadow);
       max-height: 90vh;
       overflow:auto;
-    }
-
-    #modalContent img {
-      width: 100%;
-      border-radius: 8px;
-      margin-top: 12px;
-      display:block;
     }
 
     #modalContent h2 { margin-top: 0; margin-bottom: 6px; }
@@ -318,7 +306,6 @@
     .v{flex:1}
     .v a{color:var(--pri)}
 
-    /* ✅ 詳細モーダルの画像を少し小さくする */
     .detailModal .heroImg{
       width: 100%;
       max-height: 320px;
@@ -344,7 +331,6 @@
 </div>
 <div class="err" id="err"></div>
 
-<!-- ✅ 追記：種類フィルタ＆並び替え -->
 <div class="toolbar">
   <div class="chips" id="typeChips">
     <span class="badge type-all active" data-type="all">すべて</span>
@@ -362,9 +348,10 @@
   </div>
 </div>
 
-<div class="campaign-list" id="campaignList"></div>
+<div class="campaign-list" id="campaignList">
+  <div style="color:#6b7280">読み込み中…</div>
+</div>
 
-<!-- モーダル表示 -->
 <div id="modal" onclick="if(event.target.id==='modal') closeModal();">
   <div id="modalContent" class="detailModal">
     <button class="closeBtn" onclick="closeModal()">×</button>
@@ -385,15 +372,25 @@
 </div>
 
 <script>
-  /* ★管理画面と同じ /exec に統一 */
+(() => {
   const API_URL = "https://script.google.com/macros/s/AKfycbwiSMKMDvHIZ2l8hs9ogCPLKmX6eNPpn5jKDvHbMxwFbqVw7zGLFZIcarAsmO88D_L4/exec";
   const $ = (id)=>document.getElementById(id);
 
-  let campaigns = [];
+  // 画面に「JSエラー」を出す（真っ白対策）
+  window.addEventListener("error", (ev)=>{
+    try{
+      const msg = (ev && ev.message) ? ev.message : "unknown error";
+      $("err").textContent = "JSエラー: " + msg;
+    }catch(_){}
+  });
 
-  // ✅ 追加：種類フィルタ＆ソート
-  let typeFilter = "all";     // all / event / consulting / other
-  let sortMode = "soonest";   // soonest / type
+  let campaigns = [];
+  let typeFilter = "all";
+  let sortMode = "soonest";
+
+  // ✅ 即表示用キャッシュ
+  const CACHE_KEY = "campaign_list_cache_v1";
+  const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6時間
 
   function setError(msg){ $("err").textContent = msg || ""; }
 
@@ -401,6 +398,17 @@
     if(v === null || v === undefined) return "";
     if(typeof v === "string") return v;
     try{ return String(v); }catch(_){ return ""; }
+  }
+
+  function escapeHtml(s){
+    return str(s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+  }
+
+  // replaceAll を使わない（Safariで落ちるのを防ぐ）
+  function normalizeDateStr_(s){
+    return str(s).trim().replace(/\//g, "-");
   }
 
   async function fetchJson(url, opt){
@@ -411,7 +419,7 @@
 
     const text = await res.text();
     if(!res.ok){
-      throw new Error(`HTTP ${res.status} ${res.statusText}\n${text.slice(0,600)}`);
+      throw new Error("HTTP " + res.status + " " + res.statusText + "\n" + text.slice(0,600));
     }
     let j;
     try{ j = JSON.parse(text); }
@@ -421,15 +429,14 @@
   }
 
   async function apiList(){
-    const j = await fetchJson(`${API_URL}?action=list_campaigns&t=${Date.now()}`);
+    const j = await fetchJson(API_URL + "?action=list_campaigns&t=" + Date.now());
     return j.campaigns || [];
   }
 
   function toDateSafe(dateStr){
-    const s = str(dateStr).trim();
+    const s = normalizeDateStr_(dateStr);
     if(!s) return null;
-    const ss = s.replaceAll("/", "-");
-    const d = new Date(`${ss}T00:00:00`);
+    const d = new Date(s + "T00:00:00");
     if(isNaN(d.getTime())) return null;
     return d;
   }
@@ -438,18 +445,11 @@
     const s = str(v).trim();
     if(!s) return "-";
     const d = (v instanceof Date) ? v : new Date(s);
-    if(Number.isNaN(d.getTime())) return s;
+    if(isNaN(d.getTime())) return s;
     const y=d.getFullYear(), m=d.getMonth()+1, dd=d.getDate();
-    return `${y}年${m}月${dd}日`;
+    return y + "年" + m + "月" + dd + "日";
   }
 
-  function escapeHtml(s){
-    return str(s)
-      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
-  }
-
-  /* ✅ 追加：詳細文をURLリンク化（http/httpsのみ） */
   function linkify_(text){
     const s = str(text || "");
     const escaped = escapeHtml(s);
@@ -459,7 +459,7 @@
       const m = url.match(/^(.*?)([)\]\}.,、。]+)?$/);
       const clean = m ? m[1] : url;
       const tail  = (m && m[2]) ? m[2] : "";
-      return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>${tail}`;
+      return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer">' + clean + "</a>" + tail;
     });
   }
 
@@ -521,33 +521,29 @@
   }
 
   function buildPeriod(c){
-    return `${fmtDateJa(c.startDate)}〜${fmtDateJa(c.endDate)}`;
+    return fmtDateJa(c.startDate) + "〜" + fmtDateJa(c.endDate);
   }
 
   function getImageSrc(c){
     const d = str(c.imageData).trim();
-    if(d && d.startsWith("data:image")) return d;
-
+    if(d && d.indexOf("data:image") === 0) return d;
     const u = str(c.imageUrl).trim();
     if(u) return u;
-
     return "";
   }
 
   function imgTag(src, alt){
-    return `<img loading="lazy" src="${src}" alt="${escapeHtml(alt)}"
-      onerror="this.closest('.thumb') && (this.closest('.thumb').innerHTML='<div class=&quot;noimg&quot;>画像なし</div>');">`;
+    return '<img loading="lazy" src="' + src + '" alt="' + escapeHtml(alt) + '"' +
+      ' onerror="this.closest(\\\'.thumb\\\') && (this.closest(\\\'.thumb\\\').innerHTML=\\\'<div class=&quot;noimg&quot;>画像なし</div>\\\');">';
   }
 
   function getActiveList(){
     let active = campaigns.filter(isActiveCampaign);
 
-    // ✅ 種類フィルタ
     if(typeFilter !== "all"){
       active = active.filter(c => typeNorm(c.type) === typeFilter);
     }
 
-    // ✅ ソート
     if(sortMode === "type") active.sort(sortByTypeThenDate);
     else active.sort(sortBySoonest);
 
@@ -556,17 +552,16 @@
 
   function render(){
     const container = $("campaignList");
+    if(!container) return;
     container.innerHTML = "";
 
     const active = getActiveList();
-
-    // 全体件数は「全キャンペーン数」を維持
     const activeAll = campaigns.filter(isActiveCampaign).length;
     const filterLabel = (typeFilter === "all") ? "すべて" : typeLabel(typeFilter);
-    $("count").textContent = `表示 ${active.length}件（${filterLabel}） / 開催中${activeAll}件 / 全${campaigns.length}件`;
+    $("count").textContent = "表示 " + active.length + "件（" + filterLabel + "） / 開催中" + activeAll + "件 / 全" + campaigns.length + "件";
 
     if(!active.length){
-      container.innerHTML = `<div style="color:#6b7280">現在、開催中のキャンペーンはありません。</div>`;
+      container.innerHTML = '<div style="color:#6b7280">現在、開催中のキャンペーンはありません。</div>';
       return;
     }
 
@@ -583,21 +578,20 @@
       card.className = "campaign-card";
 
       const thumbHtml = img
-        ? `<div class="thumb">${imgTag(img, title)}</div>`
-        : `<div class="thumb"><div class="noimg">画像なし</div></div>`;
+        ? '<div class="thumb">' + imgTag(img, title) + "</div>"
+        : '<div class="thumb"><div class="noimg">画像なし</div></div>';
 
-      card.innerHTML = `
-        ${thumbHtml}
-        <div class="content">
-          <div class="titleRow">
-            <h2>${escapeHtml(title)}</h2>
-            <span class="badge ${tCls} cardTypeBadge">🏷️ ${escapeHtml(tLbl)}</span>
-          </div>
-          <p>${escapeHtml(desc)}</p>
-          <p class="period">${escapeHtml(period)}</p>
-          <a href="#" data-open="${index}">詳しく見る</a>
-        </div>
-      `;
+      card.innerHTML =
+        thumbHtml +
+        '<div class="content">' +
+          '<div class="titleRow">' +
+            "<h2>" + escapeHtml(title) + "</h2>" +
+            '<span class="badge ' + tCls + ' cardTypeBadge">🏷️ ' + escapeHtml(tLbl) + "</span>" +
+          "</div>" +
+          "<p>" + escapeHtml(desc) + "</p>" +
+          '<p class="period">' + escapeHtml(period) + "</p>" +
+          '<a href="#" data-open="' + index + '">詳しく見る</a>' +
+        "</div>";
 
       container.appendChild(card);
     });
@@ -620,13 +614,9 @@
     $("modalPeriod").innerText = buildPeriod(c);
 
     const img = getImageSrc(c);
-    $("modalImageWrap").innerHTML = img
-      ? `<img class="heroImg" src="${img}" alt="">`
-      : ``;
+    $("modalImageWrap").innerHTML = img ? '<img class="heroImg" src="' + img + '" alt="">' : "";
 
     const details = str(c.details).trim() || str(c.shortDesc).trim();
-
-    /* ✅ 変更：innerText → innerHTML（URLだけリンク化） */
     $("modalDetails").innerHTML = linkify_(details || "（詳細は準備中です）");
 
     const conditions = str(c.conditions).trim();
@@ -640,7 +630,7 @@
 
     $("rowLink").style.display = link ? "flex" : "none";
     $("modalLink").innerHTML = link
-      ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(link)}</a>`
+      ? '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener">' + escapeHtml(link) + "</a>"
       : "";
 
     $("modal").style.display = "flex";
@@ -651,48 +641,91 @@
   }
   window.closeModal = closeModal;
 
-  // ✅ フィルタ（バッジ）クリック
   function bindTypeChips(){
     const chips = document.querySelectorAll("#typeChips [data-type]");
     chips.forEach(chip=>{
       chip.addEventListener("click", ()=>{
         typeFilter = str(chip.getAttribute("data-type")).trim() || "all";
-
         chips.forEach(x=>x.classList.remove("active"));
         chip.classList.add("active");
-
         render();
       });
     });
   }
 
-  // ✅ ソート変更
   $("sortSel").addEventListener("change", ()=>{
     sortMode = str($("sortSel").value).trim() || "soonest";
     render();
   });
 
-  async function refresh(){
-    setError("");
-    $("btnReload").disabled = true;
-    $("btnReload").textContent = "更新中…";
+  function loadCacheAndRender_(){
     try{
-      campaigns = await apiList();
-      $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
+      const raw = localStorage.getItem(CACHE_KEY);
+      if(!raw) return false;
+      const obj = JSON.parse(raw);
+      const ts = Number(obj.ts || 0);
+      const list = Array.isArray(obj.campaigns) ? obj.campaigns : null;
+      if(!list || !ts) return false;
+
+      campaigns = list;
       render();
-    }catch(err){
-      setError("読み込みに失敗： " + (err.message || err));
-    }finally{
-      $("btnReload").disabled = false;
-      $("btnReload").textContent = "更新";
+
+      const ageMin = Math.floor((Date.now() - ts)/60000);
+      $("loadedAt").textContent = "表示：キャッシュ（" + ageMin + "分前）";
+      return true;
+    }catch(_){
+      return false;
     }
   }
 
-  $("btnReload").addEventListener("click", refresh);
+  function saveCache_(){
+    try{
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), campaigns }));
+    }catch(_){}
+  }
 
-  // 起動
+  async function refresh({silent=false} = {}){
+    if(!silent){
+      setError("");
+      $("btnReload").disabled = true;
+      $("btnReload").textContent = "更新中…";
+    }
+
+    try{
+      const list = await apiList();
+      campaigns = list || [];
+      saveCache_();
+      $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
+      render();
+      setError("");
+    }catch(err){
+      const msg = "読み込みに失敗： " + (err && err.message ? err.message : err);
+      setError(msg);
+
+      if(!campaigns.length){
+        $("campaignList").innerHTML = '<div style="color:#6b7280">読み込み中にエラーが発生しました。更新を押してください。</div>';
+      }
+    }finally{
+      if(!silent){
+        $("btnReload").disabled = false;
+        $("btnReload").textContent = "更新";
+      }
+    }
+  }
+
+  $("btnReload").addEventListener("click", ()=>refresh({silent:false}));
+
+  // 起動：キャッシュ即表示 → 裏で取得
   bindTypeChips();
-  refresh();
+  const hasCache = loadCacheAndRender_();
+  if(!hasCache){
+    $("campaignList").innerHTML = '<div style="color:#6b7280">読み込み中…</div>';
+    $("loadedAt").textContent = "読み込み：開始…";
+  } else {
+    // 常に裏更新（即表示はキャッシュが担当）
+    refresh({silent:true});
+  }
+})();
 </script>
 
 </body>
