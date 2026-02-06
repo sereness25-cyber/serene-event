@@ -1262,44 +1262,46 @@ $("listF").addEventListener("click", (e)=>{
   if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
 });
 
-/* ★割引 input：input(debounce)+Enter+blur で保存。draftでフォーカス維持 */
 function bindDiscountInputDelegation(container){
 
-  // 入力中は保存しない（draftのみ）
   container.addEventListener("input", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
+
     const pid = inp.dataset.discount;
-    setDraft(pid, inp.value);
+    const v = String(inp.value ?? "");
+
+    // ① draft に即反映（画面用）
+    setDraft(pid, v);
+
+    // ② 画面を即再計算（体感即時）
+    renderConfirmed();
+    renderReservations();
+
+    // ③ 入力が止まったら自動保存（400ms）
+    debounceByKey("disc_"+pid, ()=>{
+      const last = inp.dataset.lastSaved ?? "";
+      if(v === last) return;
+
+      inp.dataset.lastSaved = v;
+      requestDiscountSave(pid, v);
+    }, 400);
   });
 
-  // Enterで確定保存
+  // Enter でも即保存
   container.addEventListener("keydown", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
     if(e.key === "Enter"){
       e.preventDefault();
       const pid = inp.dataset.discount;
-      setDraft(pid, inp.value);
-      requestDiscountSave(pid, inp.value);
+      const v = String(inp.value ?? "");
+      inp.dataset.lastSaved = v;
+      setDraft(pid, v);
+      requestDiscountSave(pid, v);
       inp.blur();
     }
   });
-
-  // フォーカスアウト時に1回だけ保存
-  container.addEventListener("focusout", (e)=>{
-    const inp = e.target.closest("input[data-discount]");
-    if(!inp) return;
-    const pid = inp.dataset.discount;
-
-    const current = String(inp.value ?? "");
-    const last = inp.dataset.lastSaved ?? "";
-    if(current === last) return;
-
-    inp.dataset.lastSaved = current;
-    setDraft(pid, current);
-    requestDiscountSave(pid, current);
-  }, true);
 }
 bindDiscountInputDelegation($("resBody"));
 bindDiscountInputDelegation($("listM"));
