@@ -15,6 +15,7 @@
       --radius: 12px;
       --shadow: 0 4px 12px rgba(0,0,0,0.06);
       --danger:#ef4444;
+      --sk:#e5e7eb;
     }
 
     * { box-sizing: border-box; }
@@ -243,6 +244,32 @@
       font-size: 14px;
     }
 
+    /* ===== スケルトン（即表示用） ===== */
+    .sk{
+      position: relative;
+      overflow:hidden;
+      background: var(--sk);
+      border-radius: 8px;
+    }
+    .sk::after{
+      content:"";
+      position:absolute; inset:0;
+      transform:translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+      animation: shimmer 1.2s infinite;
+    }
+    @keyframes shimmer{
+      100%{ transform:translateX(100%); }
+    }
+    .sk-thumb{ height:180px; border-radius:0; }
+    .sk-line{ height:14px; margin-top:10px; }
+    .sk-line.w70{ width:70%; }
+    .sk-line.w55{ width:55%; }
+    .sk-line.w85{ width:85%; }
+    .sk-line.w40{ width:40%; }
+    .sk-btn{ height:34px; width:110px; border-radius: 6px; margin-top:12px; }
+
+    /* モーダル */
     #modal {
       display: none;
       position: fixed;
@@ -348,8 +375,63 @@
   </div>
 </div>
 
+<!-- ✅ JSより先に“カードっぽいもの”を出す（体感速度UP） -->
 <div class="campaign-list" id="campaignList">
-  <div style="color:#6b7280">読み込み中…</div>
+  <!-- skeleton x6 -->
+  <div class="campaign-card">
+    <div class="thumb sk sk-thumb"></div>
+    <div class="content">
+      <div class="sk sk-line w85"></div>
+      <div class="sk sk-line w70"></div>
+      <div class="sk sk-line w55"></div>
+      <div class="sk sk-btn"></div>
+    </div>
+  </div>
+  <div class="campaign-card">
+    <div class="thumb sk sk-thumb"></div>
+    <div class="content">
+      <div class="sk sk-line w85"></div>
+      <div class="sk sk-line w70"></div>
+      <div class="sk sk-line w55"></div>
+      <div class="sk sk-btn"></div>
+    </div>
+  </div>
+  <div class="campaign-card">
+    <div class="thumb sk sk-thumb"></div>
+    <div class="content">
+      <div class="sk sk-line w85"></div>
+      <div class="sk sk-line w70"></div>
+      <div class="sk sk-line w55"></div>
+      <div class="sk sk-btn"></div>
+    </div>
+  </div>
+  <div class="campaign-card">
+    <div class="thumb sk sk-thumb"></div>
+    <div class="content">
+      <div class="sk sk-line w85"></div>
+      <div class="sk sk-line w70"></div>
+      <div class="sk sk-line w55"></div>
+      <div class="sk sk-btn"></div>
+    </div>
+  </div>
+  <div class="campaign-card">
+    <div class="thumb sk sk-thumb"></div>
+    <div class="content">
+      <div class="sk sk-line w85"></div>
+      <div class="sk sk-line w70"></div>
+      <div class="sk sk-line w55"></div>
+      <div class="sk sk-btn"></div>
+    </div>
+  </div>
+  <div class="campaign-card">
+    <div class="thumb sk sk-thumb"></div>
+    <div class="content">
+      <div class="sk sk-line w85"></div>
+      <div class="sk sk-line w70"></div>
+      <div class="sk sk-line w55"></div>
+      <div class="sk sk-btn"></div>
+    </div>
+  </div>
 </div>
 
 <div id="modal" onclick="if(event.target.id==='modal') closeModal();">
@@ -371,12 +453,11 @@
   </div>
 </div>
 
-<script>
+<script defer>
 (() => {
   const API_URL = "https://script.google.com/macros/s/AKfycbwiSMKMDvHIZ2l8hs9ogCPLKmX6eNPpn5jKDvHbMxwFbqVw7zGLFZIcarAsmO88D_L4/exec";
   const $ = (id)=>document.getElementById(id);
 
-  // 画面に「JSエラー」を出す（真っ白対策）
   window.addEventListener("error", (ev)=>{
     try{
       const msg = (ev && ev.message) ? ev.message : "unknown error";
@@ -388,44 +469,32 @@
   let typeFilter = "all";
   let sortMode = "soonest";
 
-  // ✅ 即表示用キャッシュ
   const CACHE_KEY = "campaign_list_cache_v1";
-  const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6時間
 
-  function setError(msg){ $("err").textContent = msg || ""; }
-
-  function str(v){
-    if(v === null || v === undefined) return "";
-    if(typeof v === "string") return v;
-    try{ return String(v); }catch(_){ return ""; }
-  }
-
+  function setError(msg){ const el=$("err"); if(el) el.textContent = msg || ""; }
+  function str(v){ if(v===null||v===undefined) return ""; if(typeof v==="string") return v; try{ return String(v);}catch(_){return "";} }
   function escapeHtml(s){
     return str(s)
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
       .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
   }
+  function normalizeDateStr_(s){ return str(s).trim().replace(/\//g, "-"); }
 
-  // replaceAll を使わない（Safariで落ちるのを防ぐ）
-  function normalizeDateStr_(s){
-    return str(s).trim().replace(/\//g, "-");
-  }
-
-  async function fetchJson(url, opt){
-    const res = await fetch(url, Object.assign({
-      cache:"no-store",
-      redirect:"follow",
-    }, opt || {}));
-
-    const text = await res.text();
-    if(!res.ok){
-      throw new Error("HTTP " + res.status + " " + res.statusText + "\n" + text.slice(0,600));
+  // ✅ タイムアウト付きfetch（GAS遅い日でも固まらない）
+  async function fetchJson(url){
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), 5000); // 5秒
+    try{
+      const res = await fetch(url, { cache:"no-store", redirect:"follow", signal: controller.signal });
+      const text = await res.text();
+      if(!res.ok) throw new Error("HTTP " + res.status + " " + res.statusText + "\n" + text.slice(0,600));
+      let j;
+      try{ j = JSON.parse(text); }catch(_){ throw new Error("JSONではない応答（HTML等）:\n" + text.slice(0,600)); }
+      if(j && j.ok === false && j.error) throw new Error(j.error);
+      return j;
+    } finally {
+      clearTimeout(timer);
     }
-    let j;
-    try{ j = JSON.parse(text); }
-    catch(_){ throw new Error("JSONではない応答（HTML等）:\n" + text.slice(0,600)); }
-    if(j && j.ok === false && j.error) throw new Error(j.error);
-    return j;
   }
 
   async function apiList(){
@@ -446,15 +515,12 @@
     if(!s) return "-";
     const d = (v instanceof Date) ? v : new Date(s);
     if(isNaN(d.getTime())) return s;
-    const y=d.getFullYear(), m=d.getMonth()+1, dd=d.getDate();
-    return y + "年" + m + "月" + dd + "日";
+    return d.getFullYear() + "年" + (d.getMonth()+1) + "月" + d.getDate() + "日";
   }
 
   function linkify_(text){
-    const s = str(text || "");
-    const escaped = escapeHtml(s);
+    const escaped = escapeHtml(str(text||""));
     const urlRe = /https?:\/\/[^\s<>"']+/g;
-
     return escaped.replace(urlRe, (url)=>{
       const m = url.match(/^(.*?)([)\]\}.,、。]+)?$/);
       const clean = m ? m[1] : url;
@@ -520,9 +586,7 @@
     return sortBySoonest(a,b);
   }
 
-  function buildPeriod(c){
-    return fmtDateJa(c.startDate) + "〜" + fmtDateJa(c.endDate);
-  }
+  function buildPeriod(c){ return fmtDateJa(c.startDate) + "〜" + fmtDateJa(c.endDate); }
 
   function getImageSrc(c){
     const d = str(c.imageData).trim();
@@ -539,14 +603,8 @@
 
   function getActiveList(){
     let active = campaigns.filter(isActiveCampaign);
-
-    if(typeFilter !== "all"){
-      active = active.filter(c => typeNorm(c.type) === typeFilter);
-    }
-
-    if(sortMode === "type") active.sort(sortByTypeThenDate);
-    else active.sort(sortBySoonest);
-
+    if(typeFilter !== "all") active = active.filter(c => typeNorm(c.type) === typeFilter);
+    if(sortMode === "type") active.sort(sortByTypeThenDate); else active.sort(sortBySoonest);
     return active;
   }
 
@@ -599,8 +657,7 @@
     container.querySelectorAll("[data-open]").forEach(a=>{
       a.addEventListener("click",(e)=>{
         e.preventDefault();
-        const idx = Number(a.getAttribute("data-open"));
-        openModalByIndex(idx);
+        openModalByIndex(Number(a.getAttribute("data-open")));
       });
     });
   }
@@ -636,9 +693,7 @@
     $("modal").style.display = "flex";
   }
 
-  function closeModal() {
-    $("modal").style.display = "none";
-  }
+  function closeModal(){ $("modal").style.display = "none"; }
   window.closeModal = closeModal;
 
   function bindTypeChips(){
@@ -673,15 +728,11 @@
       const ageMin = Math.floor((Date.now() - ts)/60000);
       $("loadedAt").textContent = "表示：キャッシュ（" + ageMin + "分前）";
       return true;
-    }catch(_){
-      return false;
-    }
+    }catch(_){ return false; }
   }
 
   function saveCache_(){
-    try{
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), campaigns }));
-    }catch(_){}
+    try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), campaigns })); }catch(_){}
   }
 
   async function refresh({silent=false} = {}){
@@ -690,7 +741,6 @@
       $("btnReload").disabled = true;
       $("btnReload").textContent = "更新中…";
     }
-
     try{
       const list = await apiList();
       campaigns = list || [];
@@ -701,9 +751,8 @@
     }catch(err){
       const msg = "読み込みに失敗： " + (err && err.message ? err.message : err);
       setError(msg);
-
       if(!campaigns.length){
-        $("campaignList").innerHTML = '<div style="color:#6b7280">読み込み中にエラーが発生しました。更新を押してください。</div>';
+        $("campaignList").innerHTML = '<div style="color:#6b7280">読み込みに失敗しました。更新を押してください。</div>';
       }
     }finally{
       if(!silent){
@@ -715,16 +764,19 @@
 
   $("btnReload").addEventListener("click", ()=>refresh({silent:false}));
 
-  // 起動：キャッシュ即表示 → 裏で取得
+  // ===== 起動 =====
   bindTypeChips();
+
+  // ① まずキャッシュがあれば即描画（最速）
   const hasCache = loadCacheAndRender_();
-  if(!hasCache){
-    $("campaignList").innerHTML = '<div style="color:#6b7280">読み込み中…</div>';
-    $("loadedAt").textContent = "読み込み：開始…";
-  } else {
-    // 常に裏更新（即表示はキャッシュが担当）
+
+  // ② 画面が描画された“あと”に通信開始（体感速度UP）
+  requestAnimationFrame(()=>{
+    // キャッシュが無くても、スケルトンが出ているのでOK
+    $("loadedAt").textContent = hasCache ? $("loadedAt").textContent : "読み込み：取得中…";
     refresh({silent:true});
-  }
+  });
+
 })();
 </script>
 
