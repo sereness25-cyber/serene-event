@@ -51,7 +51,7 @@ h1{font-size:18px;margin:0}
 .badge.warn{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08);color:#7c2d12}
 .main{
   display:grid;
-  grid-template-columns: 1fr 1.6fr; /* 左：イベント / 右：参加者 */
+  grid-template-columns: 1fr 1.6fr;
   gap:12px;
   align-items:start;
 }
@@ -101,6 +101,18 @@ h1{font-size:18px;margin:0}
 }
 .smallNote{font-size:11px;color:var(--muted)}
 .hr{height:1px;background:var(--line);margin:10px 0}
+
+/* 超速：プレースホルダ */
+.skel{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  background:linear-gradient(90deg, rgba(229,231,235,.45), rgba(229,231,235,.2), rgba(229,231,235,.45));
+  background-size:200% 100%;
+  animation:shine 1.1s linear infinite;
+  height:44px;
+}
+@keyframes shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
 </style>
 </head>
 
@@ -111,7 +123,7 @@ h1{font-size:18px;margin:0}
       <div class="logo"></div>
       <div>
         <h1>当日チェックイン</h1>
-        <div class="sub">Participantsと連動：チェックイン・受付番号・参加者検索／男女別表示</div>
+        <div class="sub">参加確定者のみ表示（チェックイン・受付番号・参加者検索／男女別）</div>
       </div>
     </div>
 
@@ -153,6 +165,7 @@ h1{font-size:18px;margin:0}
           <span class="badge" id="bTotal">合計 -</span>
           <span class="badge ok" id="bIn">チェックイン -</span>
           <span class="badge warn" id="bOut">未 -</span>
+          <span class="badge" title="この画面は参加確定者だけ表示します">確定のみ</span>
         </div>
       </div>
 
@@ -161,6 +174,7 @@ h1{font-size:18px;margin:0}
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
             <div style="font-weight:900" id="selTitle">-</div>
             <span class="badge" id="feeBadge">参加費：-</span>
+            <span class="badge ok" id="fastBadge" style="display:none">即表示</span>
           </div>
           <div class="meta" id="selMeta">-</div>
           <div style="height:10px"></div>
@@ -172,7 +186,7 @@ h1{font-size:18px;margin:0}
         </div>
 
         <div id="pBody">
-          <div class="meta">左の一覧からイベントを選ぶと、参加者が表示されます。</div>
+          <div class="meta">左の一覧からイベントを選ぶと、参加確定者が表示されます。</div>
         </div>
 
         <div class="err" id="pErr" style="margin-top:10px"></div>
@@ -184,15 +198,50 @@ h1{font-size:18px;margin:0}
 <script>
 /* ========= 設定 ========= */
 const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
-const ADMIN_KEY = "kei591117"; // ※GAS側で検証してなくても、将来のため送っておく
+const ADMIN_KEY = "kei591117";
 const $ = id => document.getElementById(id);
 
 /* ========= state ========= */
 let allEvents = [];
-let viewMode = "today"; // "today" | "all"
+let viewMode = "today";
 let selectedEventId = null;
 let selectedEvent = null;
 let participants = [];
+let _bindTimer = null;
+
+/* ========= 超速：HTMLキャッシュ（描画済みを保存して0msで出す） ========= */
+const VIEW_CACHE_KEY = "checkin_view_cache_v2"; // eventId -> {ts, head:{title,meta,fee}, html, counts}
+const LAST_VIEW_KEY  = "checkin_last_view_v2";
+function _loadObj(k){ try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(_){return {}} }
+function _saveObj(k,v){ try{localStorage.setItem(k, JSON.stringify(v))}catch(_){ } }
+function cacheGetView(eventId){
+  const all = _loadObj(VIEW_CACHE_KEY);
+  return all[String(eventId)] || null;
+}
+function cacheSetView(eventId, payload){
+  const all = _loadObj(VIEW_CACHE_KEY);
+  all[String(eventId)] = payload;
+  _saveObj(VIEW_CACHE_KEY, all);
+  _saveObj(LAST_VIEW_KEY, { eventId:String(eventId), ts:Date.now() });
+}
+function cacheGetLastEventId(){
+  const o = _loadObj(LAST_VIEW_KEY);
+  return o.eventId ? String(o.eventId) : null;
+}
+function showFastBadge(on){
+  $("fastBadge").style.display = on ? "inline-flex" : "none";
+}
+function paintSkeleton(){
+  $("pHead").style.display="block";
+  $("pBody").innerHTML = `
+    <div class="pWrap">
+      <div class="skel"></div>
+      <div class="skel"></div>
+      <div class="skel"></div>
+      <div class="skel"></div>
+    </div>
+  `;
+}
 
 /* ========= util ========= */
 function escapeHtml(s){
@@ -253,16 +302,19 @@ function normalizeGender(g){
   if(s.includes("女") || s==="f" || s.includes("female")) return "female";
   return "unknown";
 }
+function normalizeStatus(v){
+  const s = String(v??"").trim().toLowerCase();
+  if(s==="confirmed" || s==="ok" || s==="参加" || s==="確定") return "confirmed";
+  if(s==="reserved" || s==="reserve" || s==="予約") return "reserved";
+  return s || "reserved";
+}
 function toBool(v){
   if(v===true) return true;
   const s = String(v||"").toLowerCase().trim();
   return (s==="true" || s==="1" || s==="yes" || s==="checked" );
 }
-
-function yen(v){
-  const n = Number(v);
-  if(!isFinite(n)) return "-";
-  return n.toLocaleString("ja-JP");
+function nextPaint(){
+  return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 }
 
 /* ========= API ========= */
@@ -273,13 +325,11 @@ async function fetchJson(url, opt){
   return j;
 }
 async function apiEventsAll(){
-  // list（未来/今日） + past:list（過去）を両方取って結合（選択の自由度UP）
   const a = await fetchJson(API_URL + "?action=list").catch(()=>({events:[]}));
   const b = await fetchJson(API_URL + "?action=past:list").catch(()=>({events:[]}));
   const evs = []
     .concat(a.events || a.data?.events || [])
     .concat(b.events || b.data?.events || []);
-  // idで重複排除
   const m = new Map();
   for(const e of evs){
     const id = String(e.id||"");
@@ -289,7 +339,7 @@ async function apiEventsAll(){
   return Array.from(m.values());
 }
 async function apiParticipants(eventId){
-  const j = await fetchJson(`${API_URL}?action=participants:list&eventId=${encodeURIComponent(eventId)}`);
+  const j = await fetchJson(`${API_URL}?action=participants:list&eventId=${encodeURIComponent(eventId)}&t=${Date.now()}`);
   return j.participants || j.data?.participants || [];
 }
 async function apiPost(action, payload){
@@ -311,7 +361,6 @@ function filteredEvents(){
     evs = evs.filter(isTodayEvent);
   }
 
-  // 日付降順
   evs.sort((a,b)=>{
     const da=parseDateFlex(a.date ?? a.eventDate ?? a.startDate);
     const db=parseDateFlex(b.date ?? b.eventDate ?? b.startDate);
@@ -358,7 +407,6 @@ function renderEvents(){
     b.onclick = ()=> selectEvent(b.dataset.select);
   });
 
-  // 行クリックでも選択
   document.querySelectorAll("[data-ev]").forEach(row=>{
     row.onclick = (ev)=>{
       if(ev.target && ev.target.closest("button")) return;
@@ -367,104 +415,77 @@ function renderEvents(){
   });
 }
 
-/* ========= UI：参加者 ========= */
-function participantLabel(p){
-  const name = p.name ?? p.fullName ?? p.nickname ?? "(名前なし)";
-  const age  = p.age ?? p.Age ?? "";
-  const gender = p.gender ?? p.sex ?? p.Gender ?? "";
-  const contact = p.contact ?? p.tel ?? p.phone ?? "";
-  const contactWay = p.contactWay ?? p.contactMethod ?? p.method ?? "";
-  const memo = p.memo ?? p.note ?? "";
-  const receiptNo = p.receiptNo ?? p.受付番号 ?? "";
-  const checkedIn = toBool(p.checkedIn);
-  return {name,age,gender,contact,contactWay,memo,receiptNo,checkedIn};
-}
+/* ========= 参加者：超速レンダリング（1回の走査で確定/性別/件数） ========= */
+function computeAndBuild(ps, q){
+  const male=[], female=[], unk=[];
+  let total=0, inCnt=0;
 
-function computeCounts(ps){
-  const total = ps.length;
-  const inCnt = ps.filter(x=>toBool(x.checkedIn)).length;
+  const qLower = (q||"").toLowerCase().trim();
+
+  for(const p of ps){
+    const status = normalizeStatus(p.status ?? p.state ?? p["参加ステータス"] ?? "");
+    if(status !== "confirmed") continue; // 確定のみ
+
+    const name = p.name ?? p.fullName ?? p.nickname ?? "(名前なし)";
+    const contact = p.contact ?? p.tel ?? p.phone ?? "";
+    const receiptNo = p.receiptNo ?? p.受付番号 ?? "";
+    if(qLower){
+      const s = `${name} ${contact} ${receiptNo}`.toLowerCase();
+      if(!s.includes(qLower)) continue;
+    }
+
+    total++;
+    const checkedIn = toBool(p.checkedIn);
+    if(checkedIn) inCnt++;
+
+    const gender = normalizeGender(p.gender ?? p.sex ?? p.Gender ?? "");
+    if(gender==="male") male.push(p);
+    else if(gender==="female") female.push(p);
+    else unk.push(p);
+  }
+
   const outCnt = total - inCnt;
-  $("bTotal").textContent = `合計 ${total}`;
-  $("bIn").textContent = `チェックイン ${inCnt}`;
-  $("bOut").textContent = `未 ${outCnt}`;
-}
-
-function renderParticipants(){
-  $("pErr").textContent = "";
-  if(!selectedEvent){
-    $("pHead").style.display="none";
-    $("pBody").innerHTML = `<div class="meta">左の一覧からイベントを選ぶと、参加者が表示されます。</div>`;
-    return;
-  }
-
-  const n = normalizeEvent(selectedEvent);
-  $("pHead").style.display="block";
-  $("selTitle").textContent = `${fmtJP(n.date)}｜${n.title}`;
-  $("selMeta").textContent = `${n.time||"-"}・${n.place||"-"}${n.note?("・"+n.note):""}`;
-
-  const feeTxt = `男性 ${n.priceM||"-"}円 / 女性 ${n.priceF||"-"}円`;
-  $("feeBadge").textContent = `参加費：${feeTxt}`;
-
-  // search
-  const q = ($("pQ").value||"").toLowerCase().trim();
-
-  let ps = participants.slice();
-  if(q){
-    ps = ps.filter(p=>{
-      const pp = participantLabel(p);
-      const s = `${pp.name} ${pp.contact} ${pp.receiptNo}`.toLowerCase();
-      return s.includes(q);
-    });
-  }
-
-  computeCounts(ps);
-
-  const male = ps.filter(p=>normalizeGender(participantLabel(p).gender)==="male");
-  const female = ps.filter(p=>normalizeGender(participantLabel(p).gender)==="female");
-  const unk = ps.filter(p=>normalizeGender(participantLabel(p).gender)==="unknown");
 
   const html =
-    groupHtml("男性", male) +
-    groupHtml("女性", female) +
-    (unk.length ? groupHtml("性別不明", unk) : "");
+    groupHtml("男性（確定）", male) +
+    groupHtml("女性（確定）", female) +
+    (unk.length ? groupHtml("性別不明（確定）", unk) : "");
 
-  $("pBody").innerHTML = `<div class="pWrap">${html}</div>`;
+  return { html:`<div class="pWrap">${html}</div>`, total, inCnt, outCnt, maleN:male.length, femaleN:female.length, unkN:unk.length };
 }
 
 function groupHtml(label, list){
   const rows = (list||[]).map(p=>{
-    const pp = participantLabel(p);
-    const checked = pp.checkedIn;
+    const name = p.name ?? p.fullName ?? p.nickname ?? "(名前なし)";
+    const age  = p.age ?? p.Age ?? "";
+    const gender = p.gender ?? p.sex ?? p.Gender ?? "";
+    const contact = p.contact ?? p.tel ?? p.phone ?? "";
+    const contactWay = p.contactWay ?? p.contactMethod ?? p.method ?? "";
+    const memo = p.memo ?? p.note ?? "";
+    const receiptNo = p.receiptNo ?? p.受付番号 ?? "";
+    const checked = toBool(p.checkedIn);
+
     const statusTag = checked
       ? `<span class="tag ok">チェックイン済</span>`
       : `<span class="tag ng">未チェックイン</span>`;
 
     const metaParts = [];
-    if(pp.age) metaParts.push(`年齢：${pp.age}`);
-    if(pp.contactWay) metaParts.push(`連絡：${pp.contactWay}`);
-    if(pp.contact) metaParts.push(`連絡先：${pp.contact}`);
-    if(pp.memo) metaParts.push(`メモ：${pp.memo}`);
-
-    const receiptVal = escapeHtml(pp.receiptNo||"");
+    if(age) metaParts.push(`年齢：${age}`);
+    if(contactWay) metaParts.push(`連絡：${contactWay}`);
+    if(contact) metaParts.push(`連絡先：${contact}`);
+    if(memo) metaParts.push(`メモ：${memo}`);
 
     return `
       <div class="pItem">
         <div class="pLeft">
-          <div class="pName">${escapeHtml(pp.name)}</div>
+          <div class="pName">${escapeHtml(name)}</div>
           <div class="pMeta">${escapeHtml(metaParts.join(" / ") || "—")}</div>
-         <div class="smallNote" style="margin-top:6px">
-  参加費: ${escapeHtml(p.finalFee ?? p.fee ?? p.amount ?? "")}円 / pid: ${escapeHtml(p.pid||"")}
-</div>
+          <div class="smallNote" style="margin-top:6px">pid: ${escapeHtml(p.pid||"")}</div>
         </div>
-
         <div class="pRight">
           ${statusTag}
-
-          <input class="receipt" data-receipt="${escapeHtml(p.pid)}"
-                 placeholder="受付番号" value="${receiptVal}" />
-
+          <input class="receipt" data-receipt="${escapeHtml(p.pid)}" placeholder="受付番号" value="${escapeHtml(receiptNo||"")}" />
           <button class="btn small" data-save-receipt="${escapeHtml(p.pid)}">番号保存</button>
-
           ${
             checked
               ? `<button class="btn small danger" data-uncheck="${escapeHtml(p.pid)}">取り消し</button>`
@@ -488,49 +509,119 @@ function groupHtml(label, list){
   `;
 }
 
+function applyCounts(total,inCnt,outCnt){
+  $("bTotal").textContent = `合計 ${total}`;
+  $("bIn").textContent = `チェックイン ${inCnt}`;
+  $("bOut").textContent = `未 ${outCnt}`;
+}
+
+function renderParticipantsFast(ps, {forceCacheSave=false}={}){
+  $("pErr").textContent = "";
+
+  if(!selectedEvent){
+    $("pHead").style.display="none";
+    $("pBody").innerHTML = `<div class="meta">左の一覧からイベントを選ぶと、参加確定者が表示されます。</div>`;
+    return;
+  }
+
+  const n = normalizeEvent(selectedEvent);
+  $("pHead").style.display="block";
+  $("selTitle").textContent = `${fmtJP(n.date)}｜${n.title}`;
+  $("selMeta").textContent = `${n.time||"-"}・${n.place||"-"}${n.note?("・"+n.note):""}`;
+  $("feeBadge").textContent = `参加費：男性 ${n.priceM||"-"}円 / 女性 ${n.priceF||"-"}円`;
+
+  const q = $("pQ").value || "";
+  const built = computeAndBuild(ps, q);
+
+  applyCounts(built.total, built.inCnt, built.outCnt);
+  $("pBody").innerHTML = built.html;
+
+  // 検索してない状態だけ「描画済みHTML」を保存（次回 0ms 表示用）
+  if(!q.trim() || forceCacheSave){
+    cacheSetView(selectedEventId, {
+      ts: Date.now(),
+      head: {
+        title: $("selTitle").textContent,
+        meta: $("selMeta").textContent,
+        fee: $("feeBadge").textContent
+      },
+      counts: { total: built.total, inCnt: built.inCnt, outCnt: built.outCnt },
+      html: built.html
+    });
+  }
+}
+
 /* ========= actions ========= */
 async function selectEvent(eventId){
-  selectedEventId = eventId;
-  selectedEvent = allEvents.find(x=>String(x.id)===String(eventId)) || null;
+  selectedEventId = String(eventId);
+  selectedEvent = allEvents.find(x=>String(x.id)===String(eventId)) || selectedEvent || null;
 
   renderEvents();
 
   if(!selectedEvent){
     $("pStatus").textContent = "イベントが見つかりません";
     participants = [];
-    renderParticipants();
+    $("pHead").style.display="none";
+    $("pBody").innerHTML = `<div class="meta">イベントが見つかりません</div>`;
     return;
   }
 
-  $("pStatus").textContent = "参加者を読み込み中…";
-  $("pBody").innerHTML = `<div class="meta">読み込み中…</div>`;
+  // 0msで「描画済みHTMLキャッシュ」を出す（ここが一番効く）
+  const v = cacheGetView(eventId);
+  if(v && v.html){
+    $("pHead").style.display="block";
+    $("selTitle").textContent = v.head?.title || "—";
+    $("selMeta").textContent  = v.head?.meta  || "—";
+    $("feeBadge").textContent = v.head?.fee   || "参加費：—";
+    $("pBody").innerHTML = v.html;
+    applyCounts(v.counts?.total||0, v.counts?.inCnt||0, v.counts?.outCnt||0);
+    $("pStatus").textContent = "即表示 → 最新取得中…";
+    showFastBadge(true);
+  }else{
+    $("pStatus").textContent = "読み込み中…";
+    paintSkeleton(); // 体感を0msにする
+    showFastBadge(false);
+  }
 
+  // まず描画を確定させてからネットワークへ（Safari対策）
+  await nextPaint();
+
+  // 最新取得
   try{
-    participants = await apiParticipants(eventId);
+    const fresh = await apiParticipants(eventId);
+    participants = fresh;
     $("pStatus").textContent = "OK";
-    renderParticipants();
-    bindParticipantEvents_();
+    showFastBadge(false);
+    renderParticipantsFast(participants);
+    scheduleBind();
   }catch(err){
-    participants = [];
-    $("pStatus").textContent = "読込失敗";
-    $("pErr").textContent = "参加者の読み込みに失敗： " + (err.message || err);
-    renderParticipants();
+    if(v && v.html){
+      $("pStatus").textContent = "表示中（キャッシュ）";
+    }else{
+      $("pStatus").textContent = "読込失敗";
+      $("pErr").textContent = "参加者の読み込みに失敗： " + (err.message || err);
+      $("pBody").innerHTML = `<div class="meta">読み込みに失敗しました</div>`;
+    }
   }
 }
 
+function scheduleBind(){
+  if(_bindTimer) cancelAnimationFrame(_bindTimer);
+  _bindTimer = requestAnimationFrame(()=> bindParticipantEvents_());
+}
+
 function bindParticipantEvents_(){
-  // 受付番号：自動保存（blur / Enter）＋保存ボタン
+  // 受付番号：blur / Enter ＋保存ボタン
   document.querySelectorAll("[data-receipt]").forEach(inp=>{
-    inp.addEventListener("keydown", async (e)=>{
+    inp.onkeydown = async (e)=>{
       if(e.key==="Enter"){
         e.preventDefault();
         await saveReceiptNo_(inp.dataset.receipt, inp.value);
       }
-    });
-    inp.addEventListener("blur", async ()=>{
-      // blurで自動保存（空でもOK）
+    };
+    inp.onblur = async ()=>{
       await saveReceiptNo_(inp.dataset.receipt, inp.value);
-    });
+    };
   });
 
   document.querySelectorAll("[data-save-receipt]").forEach(btn=>{
@@ -541,33 +632,46 @@ function bindParticipantEvents_(){
     };
   });
 
-  // チェックイン
   document.querySelectorAll("[data-check]").forEach(btn=>{
-    btn.onclick = async ()=>{
-      const pid = btn.dataset.check;
-      await doCheckin_(pid);
-    };
+    btn.onclick = async ()=> doCheckin_(btn.dataset.check);
   });
-
-  // 取り消し
   document.querySelectorAll("[data-uncheck]").forEach(btn=>{
-    btn.onclick = async ()=>{
-      const pid = btn.dataset.uncheck;
-      await doUncheckin_(pid);
-    };
+    btn.onclick = async ()=> doUncheckin_(btn.dataset.uncheck);
   });
+}
+
+/* ====== すぐ反映：楽観的UI（チェックイン/取消/受付番号） ====== */
+function patchParticipant(pid, patch){
+  const i = participants.findIndex(x=>String(x.pid)===String(pid));
+  if(i<0) return null;
+  const prev = { ...participants[i] };
+  participants[i] = { ...participants[i], ...patch };
+  return prev;
+}
+function revertParticipant(pid, prev){
+  if(!prev) return;
+  const i = participants.findIndex(x=>String(x.pid)===String(pid));
+  if(i<0) return;
+  participants[i] = prev;
+}
+function rerenderNow(){
+  renderParticipantsFast(participants, {forceCacheSave:true});
+  scheduleBind();
 }
 
 async function saveReceiptNo_(pid, receiptNo){
   if(!selectedEventId) return;
+
+  const prev = patchParticipant(pid, { receiptNo });
+  rerenderNow();
+
   try{
     $("pStatus").textContent = "保存中…";
     await apiPost("participants:setReceiptNo", { pid, receiptNo });
-    // ローカル反映
-    const p = participants.find(x=>String(x.pid)===String(pid));
-    if(p) p.receiptNo = receiptNo;
     $("pStatus").textContent = "OK";
   }catch(err){
+    revertParticipant(pid, prev);
+    rerenderNow();
     $("pStatus").textContent = "失敗";
     $("pErr").textContent = "受付番号の保存に失敗： " + (err.message || err);
   }
@@ -575,15 +679,17 @@ async function saveReceiptNo_(pid, receiptNo){
 
 async function doCheckin_(pid){
   if(!selectedEventId) return;
+
+  const prev = patchParticipant(pid, { checkedIn: true });
+  $("pStatus").textContent = "反映 → 保存中…";
+  rerenderNow();
+
   try{
-    $("pStatus").textContent = "チェックイン中…";
     await apiPost("participants:checkin", { pid, by:"受付" });
-    // 再読込（確実）
-    participants = await apiParticipants(selectedEventId);
     $("pStatus").textContent = "OK";
-    renderParticipants();
-    bindParticipantEvents_();
   }catch(err){
+    revertParticipant(pid, prev);
+    rerenderNow();
     $("pStatus").textContent = "失敗";
     alert("チェックイン失敗： " + (err.message || err));
   }
@@ -591,14 +697,17 @@ async function doCheckin_(pid){
 
 async function doUncheckin_(pid){
   if(!selectedEventId) return;
+
+  const prev = patchParticipant(pid, { checkedIn: false });
+  $("pStatus").textContent = "反映 → 保存中…";
+  rerenderNow();
+
   try{
-    $("pStatus").textContent = "取り消し中…";
     await apiPost("participants:uncheckin", { pid });
-    participants = await apiParticipants(selectedEventId);
     $("pStatus").textContent = "OK";
-    renderParticipants();
-    bindParticipantEvents_();
   }catch(err){
+    revertParticipant(pid, prev);
+    rerenderNow();
     $("pStatus").textContent = "失敗";
     alert("取り消し失敗： " + (err.message || err));
   }
@@ -608,26 +717,42 @@ async function doUncheckin_(pid){
 async function reload(){
   $("evStatus").textContent = "読込中…";
   $("evErr").textContent = "";
+
+  // ページを開いた瞬間から右側を0msで出す（前回表示）
+  const lastId = cacheGetLastEventId();
+  if(lastId){
+    const v = cacheGetView(lastId);
+    if(v && v.html){
+      selectedEventId = lastId;
+      $("pHead").style.display="block";
+      $("selTitle").textContent = v.head?.title || "—";
+      $("selMeta").textContent  = v.head?.meta  || "—";
+      $("feeBadge").textContent = v.head?.fee   || "参加費：—";
+      $("pBody").innerHTML = v.html;
+      applyCounts(v.counts?.total||0, v.counts?.inCnt||0, v.counts?.outCnt||0);
+      $("pStatus").textContent = "前回表示 → イベント読込中…";
+      showFastBadge(true);
+    }
+  }
+
   try{
     allEvents = await apiEventsAll();
     $("evStatus").textContent = "OK";
     renderEvents();
 
-    // 既に選択中なら再表示
-    if(selectedEventId){
-      const keep = selectedEventId;
-      selectedEvent = allEvents.find(x=>String(x.id)===String(keep)) || null;
-      if(selectedEvent){
-        participants = await apiParticipants(keep);
-        renderParticipants();
-        bindParticipantEvents_();
-      }else{
-        selectedEventId = null;
-        selectedEvent = null;
-        participants = [];
-        renderParticipants();
-      }
+    // 自動選択：まず「前回」→ なければ「今日先頭」
+    let pick = lastId && allEvents.some(e=>String(e.id)===String(lastId)) ? lastId : null;
+    if(!pick){
+      const todayList = allEvents.filter(isTodayEvent);
+      if(viewMode==="today" && todayList.length) pick = String(todayList[0].id);
     }
+    if(pick){
+      // selectedEvent を確定させる（見出し用）
+      selectedEvent = allEvents.find(x=>String(x.id)===String(pick)) || selectedEvent;
+      await selectEvent(pick);
+      return;
+    }
+
   }catch(err){
     $("evStatus").textContent = "読込失敗";
     $("evErr").textContent = "読み込みに失敗： " + (err.message || err);
@@ -636,9 +761,17 @@ async function reload(){
 
 $("btnReload").onclick = reload;
 $("evQ").oninput = renderEvents;
-$("pQ").oninput = ()=>{ renderParticipants(); bindParticipantEvents_(); };
+$("pQ").oninput = ()=>{ renderParticipantsFast(participants); scheduleBind(); };
 
-$("btnToday").onclick = ()=>{ viewMode="today"; renderEvents(); };
+$("btnToday").onclick = async ()=>{
+  viewMode="today";
+  renderEvents();
+  const todayList = allEvents.filter(isTodayEvent);
+  if(todayList.length){
+    selectedEvent = todayList[0];
+    await selectEvent(String(todayList[0].id));
+  }
+};
 $("btnAll").onclick = ()=>{ viewMode="all"; renderEvents(); };
 
 const ADMIN_PAGE = "./admin.html";
