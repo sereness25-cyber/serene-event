@@ -418,7 +418,6 @@ h1{font-size:18px;margin:0}
       </div>
     </div>
 
-    <!-- ★男女がわかりやすいタブ -->
     <div class="modalBd">
       <div class="tabRow">
         <button class="tabBtn on" id="tabAll" type="button">全て <span class="tabCnt" id="tabCntAll">(0)</span></button>
@@ -456,13 +455,23 @@ h1{font-size:18px;margin:0}
 ========================= */
 const ADMIN_PASSWORD = "kei591117"; // ←好きな文字列に変更
 
+function safeGet(k){
+  try{ return localStorage.getItem(k); }catch(_){ return null; }
+}
+function safeSet(k,v){
+  try{ localStorage.setItem(k,v); }catch(_){}
+}
+function safeDel(k){
+  try{ localStorage.removeItem(k); }catch(_){}
+}
+
 function unlock(){
   document.getElementById("lockScreen").style.display = "none";
-  localStorage.setItem("adminUnlocked","1");
+  safeSet("adminUnlocked","1");
 }
 
 document.addEventListener("DOMContentLoaded", ()=>{
-  const unlocked = localStorage.getItem("adminUnlocked");
+  const unlocked = safeGet("adminUnlocked");
   if(unlocked === "1"){
     unlock();
   }
@@ -486,7 +495,26 @@ let participants = [];
 let customers = [];
 let loadSeq = 0;
 
-// ===== 割引保存：1本化キュー（ロック詰まり対策） =====
+/* =========================================================
+   ★イベントも即表示：イベント一覧キャッシュ
+========================================================= */
+const EVENTS_CACHE_KEY = "events_cache_v1";
+const LAST_EVENT_KEY   = "participants_lastEventId_v1";
+
+function setEventsCache(list){
+  try{
+    safeSet(EVENTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), events: list || [] }));
+  }catch(_){}
+}
+function getEventsCache(){
+  try{
+    const obj = JSON.parse(safeGet(EVENTS_CACHE_KEY) || "null");
+    if(obj && Array.isArray(obj.events)) return obj;
+  }catch(_){}
+  return null;
+}
+
+/* ===== 割引保存：1本化キュー（ロック詰まり対策） ===== */
 const discQueue = new Map(); // pid -> latestValue
 let discWorkerRunning = false;
 
@@ -497,11 +525,9 @@ async function runDiscWorker(){
   discWorkerRunning = true;
 
   while(discQueue.size){
-    // 先頭1件だけ処理（同時保存を絶対に発生させない）
     const [pid, value] = discQueue.entries().next().value;
     discQueue.delete(pid);
 
-    // ロック競合を避けるため少し間隔を空ける
     await saveDiscountOnlyWithRetry(pid, value);
     await sleep(150);
   }
@@ -510,7 +536,7 @@ async function runDiscWorker(){
 }
 
 function requestDiscountSave(pid, value){
-  discQueue.set(pid, value); // 同じpidは最後の値で上書き
+  discQueue.set(pid, value);
   runDiscWorker();
 }
 
@@ -518,10 +544,9 @@ function requestDiscountSave(pid, value){
 const PART_CACHE_KEY = "participants_cache_v1";
 const participantsCache = new Map();
 
-// localStorage から復元
 (function loadCache(){
   try{
-    const obj = JSON.parse(localStorage.getItem(PART_CACHE_KEY) || "{}");
+    const obj = JSON.parse(safeGet(PART_CACHE_KEY) || "{}");
     for(const [eventId, payload] of Object.entries(obj)){
       participantsCache.set(eventId, payload);
     }
@@ -531,7 +556,7 @@ const participantsCache = new Map();
 function saveCache(){
   try{
     const obj = Object.fromEntries(participantsCache.entries());
-    localStorage.setItem(PART_CACHE_KEY, JSON.stringify(obj));
+    safeSet(PART_CACHE_KEY, JSON.stringify(obj));
   }catch(_){}
 }
 
@@ -567,7 +592,6 @@ function optimisticRevert(pid, prev){
 
 function lockAction(pid){
   inflight.add(pid);
-  // 表示的にもわかるように（ボタン連打を抑止）
   document.querySelectorAll(`[data-confirm="${CSS.escape(pid)}"]`).forEach(b=>{
     b.disabled = true;
     b.style.opacity = "0.6";
@@ -581,6 +605,35 @@ function unlockAction(pid){
     b.style.opacity = "";
     b.textContent = "参加確定";
   });
+}
+
+/* ===== ★フォーカス保持（iOS Safari で「1文字ごとに外れる」対策） ===== */
+function captureDiscountFocus(){
+  const el = document.activeElement;
+  if(el && el.matches && el.matches('input[data-discount]')){
+    return {
+      pid: el.dataset.discount,
+      start: el.selectionStart,
+      end: el.selectionEnd
+    };
+  }
+  return null;
+}
+function restoreDiscountFocus(info){
+  if(!info || !info.pid) return;
+  const el = document.querySelector(`input[data-discount="${CSS.escape(info.pid)}"]`);
+  if(!el) return;
+  try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+  try{
+    if(Number.isFinite(info.start) && Number.isFinite(info.end)){
+      el.setSelectionRange(info.start, info.end);
+    }
+  }catch(_){}
+}
+function withKeepDiscountFocus(fn){
+  const snap = captureDiscountFocus();
+  fn();
+  requestAnimationFrame(()=>restoreDiscountFocus(snap));
 }
 
 /* ===== カップル成立（ハート） ===== */
@@ -661,17 +714,17 @@ function setNewFold(isOpen){
     btn.setAttribute("aria-expanded","true");
     chev.textContent = "▲";
     label.textContent = "閉じる";
-    localStorage.setItem(NEW_FOLD_KEY, "open");
+    safeSet(NEW_FOLD_KEY, "open");
   }else{
     body.classList.add("isHidden");
     btn.setAttribute("aria-expanded","false");
     chev.textContent = "▼";
     label.textContent = "開く";
-    localStorage.setItem(NEW_FOLD_KEY, "closed");
+    safeSet(NEW_FOLD_KEY, "closed");
   }
 }
 function initNewFold(){
-  const saved = localStorage.getItem(NEW_FOLD_KEY);
+  const saved = safeGet(NEW_FOLD_KEY);
   const open = (saved !== "closed");
   setNewFold(open);
 }
@@ -749,7 +802,7 @@ function normalizeContactWay(v){
 function escapeHtml(s){
   return String(s??"")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+    .replaceAll('"',"quot;").replaceAll("'","&#039;");
 }
 function showAutoBadge(on){
   $("autoBadge").style.display = on ? "inline-flex" : "none";
@@ -762,7 +815,7 @@ async function apiCustomers(){ const j = await fetchJson(API_URL + "?action=cust
 async function apiParticipantsList(eventId){
   const j = await fetchJson(
     API_URL + "?action=participants:list&eventId=" + encodeURIComponent(eventId)
-    + "&nocache=1&t=" + Date.now() // ★追加：ブラウザ/中間キャッシュ回避
+    + "&nocache=1&t=" + Date.now()
   );
   return j.participants || [];
 }
@@ -795,8 +848,11 @@ function fmtDateJa(v){
   if(Number.isNaN(d.getTime())) return String(v);
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
 }
-function buildEventSelect(){
+function buildEventSelect(keepSelected=true){
   const sel = $("eventSel");
+  const before = keepSelected ? sel.value : "";
+  const last = safeGet(LAST_EVENT_KEY) || "";
+
   if(!events.length){
     sel.innerHTML = `<option value="">イベントがありません</option>`;
     return;
@@ -806,6 +862,15 @@ function buildEventSelect(){
     const label = `${fmtDateJa(e.date)}｜${e.title||e.name||"(無題)"}｜${e.place||"-"}`;
     return `<option value="${escapeHtml(e.id)}">${escapeHtml(label)}</option>`;
   }).join("");
+
+  const trySet = (id)=>{
+    if(!id) return false;
+    const opt = [...sel.options].find(o=>String(o.value)===String(id));
+    if(opt){ sel.value = id; return true; }
+    return false;
+  };
+  if(keepSelected && trySet(before)) return;
+  if(trySet(last)) return;
 }
 
 /* ===== 顧客オートフィル＋サジェスト ===== */
@@ -995,7 +1060,6 @@ async function setCoupleColor(pid, color){
 
     await reloadParticipants(eventId);
     setStatus("成立マークを保存しました");
-    
     closeHeartModal();
   }catch(err){
     setStatus("-");
@@ -1004,14 +1068,9 @@ async function setCoupleColor(pid, color){
 }
 
 /* =========================================================
-   ①割引欄：カーソルが外れる対策
-   - 入力中は DOM再描画で value を上書きしない（draftを保持）
-   - 保存は input(debounce)+Enter+blur
-   - 保存後に再描画してもフォーカスを戻す
+   割引欄：draft保持＋即反映＋保存
 ========================================================= */
 const discountDraft = new Map();  // pid -> string
-let savingDiscountPid = "";
-let restoreFocusPid = "";
 
 function getDraftDiscountValue(pid, fallback){
   if(!pid) return fallback;
@@ -1033,16 +1092,60 @@ function debounceByKey(key, fn, ms){
   debounceTimers.set(key, setTimeout(()=>{ debounceTimers.delete(key); fn(); }, ms));
 }
 
-function focusDiscount(pid){
-  if(!pid) return;
-  const el = document.querySelector(`input[data-discount="${CSS.escape(pid)}"]`);
-  if(el){
-    el.focus({preventScroll:true});
-    try{ el.setSelectionRange(el.value.length, el.value.length); }catch(_){}
-  }
+/* ★割引入力中に「表示だけ」更新する（＋participantsにも即反映） */
+function updatePriceDisplayOnly(pid, draftValue){
+  const p = participants.find(x=>x.pid===pid);
+  if(!p) return;
+
+  const disc = Math.max(0, safeInt(draftValue));
+
+  p.discountYen = disc;
+  p.updatedAt = nowIso();
+
+  const g = normalizeGender(p.gender);
+  const base = getBasePriceFromEvent(g);
+  const fee  = Math.max(0, base - disc);
+
+  document.querySelectorAll(`input[data-discount="${CSS.escape(pid)}"]`)
+    .forEach(inp=>{
+      const card = inp.closest(".pCard") || inp.closest(".rCard");
+      if(!card) return;
+      const pills = card.querySelectorAll(".pill strong");
+      if(pills.length >= 3){
+        pills[1].textContent = "-" + fmtYen(disc);
+        pills[2].textContent = fmtYen(fee);
+      }
+    });
+
+  recalcSummaryOnly();
 }
 
-/* 割引保存（変更：保存直前に pid を記録→reload後にフォーカス復帰） */
+/* ★確定一覧の合計だけを再計算（DOM再描画しない） */
+function recalcSummaryOnly(){
+  const q = ($("q")?.value || "").trim().toLowerCase();
+  const confirmed = participants.filter(p => normalizeStatus(p.status) === "confirmed");
+  const filtered = q
+    ? confirmed.filter(p=>{
+        const s = `${p.name||""} ${p.contact||""} ${p.contactWay||""}`.toLowerCase();
+        return s.includes(q);
+      })
+    : confirmed;
+
+  const discSum = filtered.reduce((a,x)=>a+safeInt(x.discountYen),0);
+  const feeSum  = filtered.reduce((a,x)=>{
+    const b = getBasePriceFromEvent(normalizeGender(x.gender));
+    const d = safeInt(x.discountYen);
+    return a + Math.max(0, b-d);
+  },0);
+  const unpaidCount = filtered.filter(x=>!x.paid).length;
+
+  $("sumC_cnt").textContent   = String(filtered.length);
+  $("sumC_disc").textContent  = fmtYen(discSum);
+  $("sumC_sales").textContent = fmtYen(feeSum);
+  $("sumC_unpaid").textContent= String(unpaidCount);
+}
+
+/* 割引保存 */
 async function saveDiscountOnlyWithRetry(pid, value){
   const eventId = $("eventSel").value;
   if(!eventId) return;
@@ -1052,10 +1155,10 @@ async function saveDiscountOnlyWithRetry(pid, value){
 
   const d = Math.max(0, safeInt(value));
 
-  // 画面は即反映
   p.discountYen = d;
   p.updatedAt = nowIso();
   setStatus("割引を保存中…");
+  recalcSummaryOnly();
 
   let lastErr = null;
   for(let i=0;i<3;i++){
@@ -1125,8 +1228,7 @@ async function togglePaid(pid){
 
     await reloadParticipants(eventId);
     setStatus("支払い状態を保存しました");
-    renderReservations();
-    renderConfirmed();
+    withKeepDiscountFocus(()=>{ renderReservations(); renderConfirmed(); });
   }catch(err){
     setStatus("-");
     setError("支払い保存に失敗： " + (err.message || err));
@@ -1135,90 +1237,81 @@ async function togglePaid(pid){
 
 /* ===== 参加者（確定）描画 ===== */
 function renderConfirmed(){
-  const q = $("q").value.trim().toLowerCase();
+  withKeepDiscountFocus(()=> {
+    const q = $("q").value.trim().toLowerCase();
 
-  const confirmed = participants.filter(p => normalizeStatus(p.status) === "confirmed");
-  const filtered = q
-    ? confirmed.filter(p=>{
-        const s = `${p.name||""} ${p.contact||""} ${p.contactWay||""}`.toLowerCase();
-        return s.includes(q);
-      })
-    : confirmed;
+    const confirmed = participants.filter(p => normalizeStatus(p.status) === "confirmed");
+    const filtered = q
+      ? confirmed.filter(p=>{
+          const s = `${p.name||""} ${p.contact||""} ${p.contactWay||""}`.toLowerCase();
+          return s.includes(q);
+        })
+      : confirmed;
 
-  $("count").textContent = `${filtered.length}件`;
+    $("count").textContent = `${filtered.length}件`;
 
-  const men = filtered.filter(p => normalizeGender(p.gender) === "M");
-  const women = filtered.filter(p => normalizeGender(p.gender) === "F");
-  const unknown = filtered.filter(p => !normalizeGender(p.gender));
+    const men = filtered.filter(p => normalizeGender(p.gender) === "M");
+    const women = filtered.filter(p => normalizeGender(p.gender) === "F");
+    const unknown = filtered.filter(p => !normalizeGender(p.gender));
 
-  $("cntM").textContent = `${men.length}名`;
-  $("cntF").textContent = `${women.length}名`;
+    $("cntM").textContent = `${men.length}名`;
+    $("cntF").textContent = `${women.length}名`;
 
-  const mk = (p, sex)=>{
-    const heart = heartEmoji(p.coupleColor);
-    const base = getBasePriceFromEvent(normalizeGender(p.gender));
-    const disc = safeInt(p.discountYen);
-    const fee  = Math.max(0, base - disc);
+    const mk = (p, sex)=>{
+      const heart = heartEmoji(p.coupleColor);
+      const base = getBasePriceFromEvent(normalizeGender(p.gender));
+      const disc = safeInt(p.discountYen);
+      const fee  = Math.max(0, base - disc);
 
-    const payBadge = p.paid
-      ? `<span class="payBadge paid">✅支払済</span>`
-      : `<span class="payBadge unpaid">💰未払い</span>`;
+      const payBadge = p.paid
+        ? `<span class="payBadge paid">✅支払済</span>`
+        : `<span class="payBadge unpaid">💰未払い</span>`;
 
-    const discVal = getDraftDiscountValue(p.pid, safeInt(p.discountYen)||0);
+      const discVal = getDraftDiscountValue(p.pid, safeInt(p.discountYen)||0);
 
-    return `
-      <div class="pCard ${sex}">
-        <div>
-          <div class="pName">
-            <span>${escapeHtml(p.name||"-")}</span>
-            ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
-            ${payBadge}
+      return `
+        <div class="pCard ${sex}">
+          <div>
+            <div class="pName">
+              <span>${escapeHtml(p.name||"-")}</span>
+              ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
+              ${payBadge}
+            </div>
+            <div class="pMeta">
+              年齢:${escapeHtml(p.age||"-")}
+              ｜連絡先:${escapeHtml(p.contact||"-")}
+              ｜連絡方法:${escapeHtml(p.contactWay||"-")}
+            </div>
+            <div class="priceRow">
+              <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
+              <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
+              <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+            </div>
           </div>
-          <div class="pMeta">
-            年齢:${escapeHtml(p.age||"-")}
-            ｜連絡先:${escapeHtml(p.contact||"-")}
-            ｜連絡方法:${escapeHtml(p.contactWay||"-")}
-          </div>
-          <div class="priceRow">
-            <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
-            <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
-            <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+          <div class="pActions">
+            ${p.pid ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(discVal))}" data-discount="${escapeHtml(p.pid)}">` : ``}
+            ${p.pid ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>` : ``}
+            ${p.pid ? `<button class="btn" data-heart-open="${escapeHtml(p.pid)}" type="button">💖成立</button>` : ``}
+            ${p.pid ? `<button class="btn danger" data-del-confirm="${escapeHtml(p.pid)}" type="button">予約に戻す</button>` : ``}
           </div>
         </div>
-        <div class="pActions">
-          ${p.pid ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(discVal))}" data-discount="${escapeHtml(p.pid)}">` : ``}
-          ${p.pid ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>` : ``}
-          ${p.pid ? `<button class="btn" data-heart-open="${escapeHtml(p.pid)}" type="button">💖成立</button>` : ``}
-          ${p.pid ? `<button class="btn danger" data-del-confirm="${escapeHtml(p.pid)}" type="button">予約に戻す</button>` : ``}
-        </div>
-      </div>
-    `;
-  };
+      `;
+    };
 
-  $("listM").innerHTML = men.length ? men.map(p=>mk(p,"male")).join("") : `<div class="meta">参加者がいません</div>`;
-  $("listF").innerHTML = women.length ? women.map(p=>mk(p,"female")).join("") : `<div class="meta">参加者がいません</div>`;
+    $("listM").innerHTML = men.length ? men.map(p=>mk(p,"male")).join("") : `<div class="meta">参加者がいません</div>`;
+    $("listF").innerHTML = women.length ? women.map(p=>mk(p,"female")).join("") : `<div class="meta">参加者がいません</div>`;
 
-  const sexWarn = $("sexWarn");
-  if(unknown.length){
-    sexWarn.style.display = "block";
-    sexWarn.textContent = `⚠ 性別が未設定の確定者が ${unknown.length}名います（予約一覧で性別を直してから確定してください）`;
-  }else{
-    sexWarn.style.display = "none";
-    sexWarn.textContent = "";
-  }
+    const sexWarn = $("sexWarn");
+    if(unknown.length){
+      sexWarn.style.display = "block";
+      sexWarn.textContent = `⚠ 性別が未設定の確定者が ${unknown.length}名います（予約一覧で性別を直してから確定してください）`;
+    }else{
+      sexWarn.style.display = "none";
+      sexWarn.textContent = "";
+    }
 
-  const discSum = (arr)=>arr.reduce((a,x)=>a+safeInt(x.discountYen),0);
-  const feeSum  = (arr)=>arr.reduce((a,x)=>{
-    const b = getBasePriceFromEvent(normalizeGender(x.gender));
-    const d = safeInt(x.discountYen);
-    return a + Math.max(0, b-d);
-  },0);
-  const unpaidCount = filtered.filter(x=>!x.paid).length;
-
-  $("sumC_cnt").textContent   = String(filtered.length);
-  $("sumC_disc").textContent  = fmtYen(discSum(filtered));
-  $("sumC_sales").textContent = fmtYen(feeSum(filtered));
-  $("sumC_unpaid").textContent= String(unpaidCount);
+    recalcSummaryOnly();
+  });
 }
 
 /* ===== 予約一覧（モーダル） ===== */
@@ -1263,7 +1356,6 @@ $("listF").addEventListener("click", (e)=>{
 });
 
 function bindDiscountInputDelegation(container){
-
   container.addEventListener("input", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
@@ -1271,14 +1363,9 @@ function bindDiscountInputDelegation(container){
     const pid = inp.dataset.discount;
     const v = String(inp.value ?? "");
 
-    // ① draft に即反映（画面用）
     setDraft(pid, v);
+    updatePriceDisplayOnly(pid, v);
 
-    // ② 画面を即再計算（体感即時）
-    renderConfirmed();
-    renderReservations();
-
-    // ③ 入力が止まったら自動保存（400ms）
     debounceByKey("disc_"+pid, ()=>{
       const last = inp.dataset.lastSaved ?? "";
       if(v === last) return;
@@ -1288,14 +1375,15 @@ function bindDiscountInputDelegation(container){
     }, 400);
   });
 
-  // Enter でも即保存
   container.addEventListener("keydown", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
+
     if(e.key === "Enter"){
       e.preventDefault();
       const pid = inp.dataset.discount;
       const v = String(inp.value ?? "");
+
       inp.dataset.lastSaved = v;
       setDraft(pid, v);
       requestDiscountSave(pid, v);
@@ -1312,7 +1400,7 @@ async function confirmParticipant(pid){
   const eventId = $("eventSel").value;
   if(!eventId) return;
 
-  if(inflight.has(pid)) return; // 二重押し防止
+  if(inflight.has(pid)) return;
 
   const p = participants.find(x => x.pid === pid);
   if(!p){
@@ -1323,17 +1411,14 @@ async function confirmParticipant(pid){
   setError("");
   lockAction(pid);
 
-  // ★(A) まず画面だけ即反映（保存前でもUIは確定に移動）
   const prev = optimisticUpdate(pid, {
     status: "confirmed",
     updatedAt: nowIso()
   });
-  renderConfirmed();
-  renderReservations();
+  withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
   setStatus("参加確定（画面反映）→ 保存中…");
 
   try{
-    // ★(B) 裏で保存
     await apiParticipantsUpsert({
       eventId,
       pid: p.pid,
@@ -1350,18 +1435,12 @@ async function confirmParticipant(pid){
       updatedAt: nowIso()
     });
 
-    // ★(C) 最後に再読込で整合（ここが遅くてもUIは既に動いてる）
     await reloadParticipants(eventId);
-    renderConfirmed();
-    renderReservations();
-
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
     setStatus("参加確定しました");
   }catch(err){
-    // 失敗したら元に戻す
     optimisticRevert(pid, prev);
-    renderConfirmed();
-    renderReservations();
-
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
     setStatus("-");
     setError("参加確定に失敗： " + (err.message || err));
   }finally{
@@ -1382,8 +1461,7 @@ async function deleteReserved(pid){
     await apiParticipantsDelete(pid);
     await reloadParticipants(eventId);
     setStatus("削除しました");
-    renderReservations();
-    renderConfirmed();
+    withKeepDiscountFocus(()=>{ renderReservations(); renderConfirmed(); });
   }catch(err){
     setStatus("-");
     setError("削除に失敗： " + (err.message || err));
@@ -1403,8 +1481,7 @@ async function revertConfirmedToReserved(pid){
     await apiParticipantsRevert(pid);
     await reloadParticipants(eventId);
     setStatus("予約一覧に戻しました");
-    renderReservations();
-    renderConfirmed();
+    withKeepDiscountFocus(()=>{ renderReservations(); renderConfirmed(); });
   }catch(err){
     setStatus("-");
     setError("戻す処理に失敗： " + (err.message || err));
@@ -1493,41 +1570,43 @@ function buildResCard(p){
 }
 
 function renderReservations(){
-  const reservedAll = participants.filter(p => normalizeStatus(p.status) === "reserved");
-  $("cntR").textContent = String(reservedAll.length);
-  $("resMeta").textContent = reservedAll.length ? `${reservedAll.length}件の予約` : "予約なし";
+  withKeepDiscountFocus(()=> {
+    const reservedAll = participants.filter(p => normalizeStatus(p.status) === "reserved");
+    $("cntR").textContent = String(reservedAll.length);
+    $("resMeta").textContent = reservedAll.length ? `${reservedAll.length}件の予約` : "予約なし";
 
-  const men = reservedAll.filter(p => normalizeGender(p.gender)==="M");
-  const women = reservedAll.filter(p => normalizeGender(p.gender)==="F");
-  const unknown = reservedAll.filter(p => !normalizeGender(p.gender));
+    const men = reservedAll.filter(p => normalizeGender(p.gender)==="M");
+    const women = reservedAll.filter(p => normalizeGender(p.gender)==="F");
+    const unknown = reservedAll.filter(p => !normalizeGender(p.gender));
 
-  $("tabCntAll").textContent = `(${reservedAll.length})`;
-  $("tabCntM").textContent   = `(${men.length})`;
-  $("tabCntF").textContent   = `(${women.length})`;
-  $("tabCntU").textContent   = `(${unknown.length})`;
+    $("tabCntAll").textContent = `(${reservedAll.length})`;
+    $("tabCntM").textContent   = `(${men.length})`;
+    $("tabCntF").textContent   = `(${women.length})`;
+    $("tabCntU").textContent   = `(${unknown.length})`;
 
-  if(!reservedAll.length){
-    $("resBody").innerHTML = `<div class="meta">予約がありません</div>`;
-    return;
-  }
+    if(!reservedAll.length){
+      $("resBody").innerHTML = `<div class="meta">予約がありません</div>`;
+      return;
+    }
 
-  let showList = reservedAll;
-  let boxClass = "unknown";
-  let title = "全て（予約）";
+    let showList = reservedAll;
+    let boxClass = "unknown";
+    let title = "全て（予約）";
 
-  if(resTab==="M"){ showList = men; boxClass = "male"; title = "👨 男性（予約）"; }
-  if(resTab==="F"){ showList = women; boxClass = "female"; title = "👩 女性（予約）"; }
-  if(resTab==="U"){ showList = unknown; boxClass = "unknown"; title = "未設定（予約）"; }
+    if(resTab==="M"){ showList = men; boxClass = "male"; title = "👨 男性（予約）"; }
+    if(resTab==="F"){ showList = women; boxClass = "female"; title = "👩 女性（予約）"; }
+    if(resTab==="U"){ showList = unknown; boxClass = "unknown"; title = "未設定（予約）"; }
 
-  $("resBody").innerHTML = `
-    <div class="resBox ${boxClass}">
-      <div class="boxHd">
-        <div class="ttl">${title}</div>
-        <div class="count">${showList.length}名</div>
+    $("resBody").innerHTML = `
+      <div class="resBox ${boxClass}">
+        <div class="boxHd">
+          <div class="ttl">${title}</div>
+          <div class="count">${showList.length}名</div>
+        </div>
+        <div>${showList.length ? showList.map(buildResCard).join("") : `<div class="meta">予約がありません</div>`}</div>
       </div>
-      <div>${showList.length ? showList.map(buildResCard).join("") : `<div class="meta">予約がありません</div>`}</div>
-    </div>
-  `;
+    `;
+  });
 }
 
 /* ===== フォーム ===== */
@@ -1554,7 +1633,6 @@ $("btnSave").onclick = async ()=>{
     const gender = $("pGender").value;
     if(!gender){ alert("性別（男性/女性）を選択してください"); return; }
 
-    // 入力を確定（先に作る）
     const pid = makePid();
     const p = {
       eventId,
@@ -1573,36 +1651,27 @@ $("btnSave").onclick = async ()=>{
       updatedAt: nowIso()
     };
 
-    // ★(A) 先にUIへ即反映（ここが体感速度の要）
-    participants = [p, ...participants];       // 先頭に追加
-    participantsRaw = [p, ...participantsRaw]; // rawも合わせる（簡易でOK）
-    setCache(eventId, participantsRaw);        // キャッシュも更新
+    participants = [p, ...participants];
+    participantsRaw = [p, ...participantsRaw];
+    setCache(eventId, participantsRaw);
 
     clearForm();
-    renderConfirmed();
-    renderReservations();
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
     setStatus("予約を追加しました（保存中…）");
 
-    // ★(B) 裏で保存（待たない）
     apiParticipantsUpsert(p).then(async ()=>{
       setStatus("保存しました");
-
-      // ★(C) 重い再読込は「あとで」「必要時だけ」
-      // データ整合が必要なら、数秒後に1回だけ同期（任意）
       setTimeout(async ()=>{
         try{
           await reloadParticipants(eventId);
           setStatus("同期しました");
         }catch(_){}
       }, 1200);
-
     }).catch(err=>{
-      // 失敗したら画面から取り消す
       participants = participants.filter(x=>x.pid !== pid);
       participantsRaw = participantsRaw.filter(x=>String(x.pid) !== String(pid));
       setCache(eventId, participantsRaw);
-      renderConfirmed();
-      renderReservations();
+      withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
       setStatus("-");
       setError("登録に失敗： " + (err.message || err));
     });
@@ -1614,36 +1683,45 @@ $("btnSave").onclick = async ()=>{
 };
 $("q").oninput = renderConfirmed;
 
+/* ★イベント切替：参加確定者を「即表示」→ そのまま裏で最新同期 */
 $("eventSel").addEventListener("change", async ()=>{
   setError("");
-  try{
-    const eventId = $("eventSel").value;
+  const eventId = $("eventSel").value;
 
+  if(eventId) safeSet(LAST_EVENT_KEY, String(eventId));
+
+  if(!eventId){
     participantsRaw = [];
     participants = [];
-    $("count").textContent = "-";
-    $("cntM").textContent = "0名";
-    $("cntF").textContent = "0名";
-    const cached = getCache(eventId);
-if(!cached){
-  $("listM").innerHTML = `<div class="meta">読込中…</div>`;
-  $("listF").innerHTML = `<div class="meta">読込中…</div>`;
-}
     $("cntR").textContent = "0";
-    $("resBody").innerHTML = `<div class="meta">読込中…</div>`;
-
-    if(!eventId){
-      renderConfirmed();
-      renderReservations();
-      return;
-    }
-
-    await reloadParticipants(eventId);
-    renderConfirmed();
-    renderReservations();
-
-  }catch(err){
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
     setEvStatus("-");
+    return;
+  }
+
+  // ★(A) まずキャッシュがあれば“即”描画（読込中表示で上書きしない）
+  const cached = getCache(eventId);
+  if(cached && Array.isArray(cached.raw)){
+    participantsRaw = cached.raw;
+    participants = cached.normalized || normalizeParticipants(cached.raw);
+    $("cntR").textContent = String(countReserved());
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
+    setEvStatus("キャッシュ表示→同期中…");
+  }else{
+    // キャッシュが無い場合だけ読込中プレースホルダ
+    $("listM").innerHTML = `<div class="meta">読込中…</div>`;
+    $("listF").innerHTML = `<div class="meta">読込中…</div>`;
+    $("resBody").innerHTML = `<div class="meta">読込中…</div>`;
+    $("cntR").textContent = "0";
+    setEvStatus("読込中…");
+  }
+
+  // ★(B) 最新取得（裏で更新 → 描画）
+  try{
+    await reloadParticipants(eventId);
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
+  }catch(err){
+    // キャッシュがあれば画面は維持される（reloadParticipants側の仕様）
     setError("参加者の読み込みに失敗： " + (err.message || err));
   }
 });
@@ -1699,38 +1777,34 @@ async function reloadParticipants(eventId){
   const seq = ++loadSeq;
   setEvStatus("参加者読込中…");
 
-  // ★(A) まずキャッシュがあれば即表示（体感が爆速）
+  // (A) キャッシュがあれば即表示
   const cached = getCache(eventId);
   if(cached && Array.isArray(cached.raw)){
     participantsRaw = cached.raw;
     participants = cached.normalized || normalizeParticipants(cached.raw);
     $("cntR").textContent = String(countReserved());
-    // ここで一旦描画（切替が一瞬で終わる）
-    renderConfirmed();
-    renderReservations();
-    setEvStatus("OK");
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
+    setEvStatus("キャッシュ表示");
   }
 
-  // ★(B) 裏で最新データ取得 → 差し替え
+  // (B) 最新取得（裏で更新）
   try{
     const raw = await apiParticipantsList(eventId);
-    if(seq !== loadSeq) return; // 途中でイベント切替されたら破棄
+    if(seq !== loadSeq) return;
 
     participantsRaw = raw;
     participants = normalizeParticipants(participantsRaw);
-    setCache(eventId, raw);     // ★キャッシュ更新
+    setCache(eventId, raw);
 
     $("cntR").textContent = String(countReserved());
-    renderConfirmed();
-    renderReservations();
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
     setEvStatus("OK");
   }catch(err){
-    // キャッシュ表示できてれば致命的じゃない
     if(!cached){
       setEvStatus("-");
       throw err;
     }else{
-      setEvStatus("OK");
+      setEvStatus("キャッシュ表示");
     }
   }
 }
@@ -1754,7 +1828,9 @@ function hardDisableIOSAutofill(){
   unlock(phone);
 }
 
-/* ===== 起動 ===== */
+/* =========================================================
+   ★起動：イベントも参加者も即表示 → 裏で最新同期
+========================================================= */
 (async()=>{
   try{
     initNewFold();
@@ -1764,18 +1840,48 @@ function hardDisableIOSAutofill(){
     setStatus("読込中…");
     setError("");
 
-    // ① まずイベントだけ取得 → 即表示
-events = await apiEvents();
-buildEventSelect();
+    // 0) イベント：キャッシュがあれば即表示
+    const evCached = getEventsCache();
+    if(evCached && Array.isArray(evCached.events) && evCached.events.length){
+      events = evCached.events;
+      buildEventSelect(false);
+      setEvStatus("キャッシュ表示");
+    }else{
+      $("eventSel").innerHTML = `<option value="">読込中…</option>`;
+    }
 
-// ② 顧客マスタは裏で読み込む（待たない）
-apiCustomers().then(list=>{
-  customers = list;
-});
+    // 1) イベント最新取得（裏で更新）
+    apiEvents().then(list=>{
+      if(Array.isArray(list)){
+        events = list;
+        setEventsCache(list);
+        const keep = true;
+        buildEventSelect(keep);
+        setEvStatus("OK");
+        const curId = $("eventSel").value;
+        if(curId){
+          safeSet(LAST_EVENT_KEY, String(curId));
+          reloadParticipants(curId).catch(()=>{});
+        }
+      }
+    }).catch(_=>{
+      if(!(evCached && evCached.events && evCached.events.length)){
+        setEvStatus("-");
+      }
+    });
 
-    const firstId = $("eventSel").value;
+    // 2) 顧客は裏で
+    apiCustomers().then(list=>{
+      customers = list || [];
+    });
+
+    // 3) 参加者：選択中イベントがあれば、キャッシュを即表示→裏で最新
+    const firstId = $("eventSel").value || safeGet(LAST_EVENT_KEY) || "";
     if(firstId){
-      await reloadParticipants(firstId);
+      const opt = [...$("eventSel").options].find(o=>String(o.value)===String(firstId));
+      if(opt) $("eventSel").value = firstId;
+      safeSet(LAST_EVENT_KEY, String($("eventSel").value || firstId));
+      await reloadParticipants($("eventSel").value || firstId);
     }else{
       participantsRaw = [];
       participants = [];
@@ -1783,11 +1889,9 @@ apiCustomers().then(list=>{
     }
 
     $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
-    setEvStatus("OK");
     setStatus("OK");
+    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
 
-    renderConfirmed();
-    renderReservations();
   }catch(err){
     setEvStatus("-");
     setStatus("-");
