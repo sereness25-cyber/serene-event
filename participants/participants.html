@@ -80,7 +80,9 @@ h1{font-size:18px;margin:0}
 /* ===== 下固定：予約一覧ボタン ===== */
 .bottomBar{
   position:fixed;left:0; right:0; bottom:0;padding:10px;
-  background:rgba(246,247,251,.85);backdrop-filter: blur(8px);
+  background:rgba(246,247,251,.85);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-top:1px solid var(--line);display:flex;justify-content:center;z-index:20;
 }
 .bottomBar .btnLike{
@@ -89,13 +91,14 @@ h1{font-size:18px;margin:0}
   padding:12px 14px;border-radius:999px;border:1px solid rgba(0,0,0,.08);
   background:#fff;box-shadow:0 12px 36px rgba(15,23,42,.18);
   cursor:pointer;font-weight:900;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ===== モーダル共通 ===== */
 .modalBack{position:fixed; inset:0;background:rgba(15,23,42,.35);display:none; align-items:center; justify-content:center;z-index:30;}
 .modal{width:min(860px, 96vw);max-height:86vh;background:#fff;border-radius:16px;box-shadow:0 18px 60px rgba(15,23,42,.25);overflow:hidden;display:flex;flex-direction:column;}
 .modalHd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
-.modalBd{padding:12px 14px;overflow:auto;}
+.modalBd{padding:12px 14px;overflow:auto; -webkit-overflow-scrolling: touch;}
 
 /* 予約カード */
 .rCard{
@@ -119,6 +122,7 @@ h1{font-size:18px;margin:0}
   align-items:center;
   gap:6px;
   user-select:none;
+  -webkit-tap-highlight-color: transparent;
 }
 .foldBtn .chev{font-weight:900}
 .foldBody{display:block}
@@ -138,6 +142,7 @@ h1{font-size:18px;margin:0}
   align-items:center;
   gap:10px;
   font-weight:900;
+  -webkit-tap-highlight-color: transparent;
 }
 .heartBtn small{font-weight:600;color:var(--muted)}
 
@@ -199,6 +204,7 @@ h1{font-size:18px;margin:0}
   cursor:pointer;
   font-weight:900;
   font-size:12px;
+  -webkit-tap-highlight-color: transparent;
 }
 .tabBtn.on{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff;border:none}
 .tabCnt{font-size:11px;color:var(--muted);font-weight:800}
@@ -235,6 +241,7 @@ h1{font-size:18px;margin:0}
       border:none;
       background:linear-gradient(135deg,#4f7cff,#2dd4bf);
       color:#fff;font-weight:800;
+      -webkit-tap-highlight-color: transparent;
     ">解除</button>
     <div id="lockErr" style="margin-top:8px;color:#ef4444;font-size:12px"></div>
   </div>
@@ -451,6 +458,30 @@ h1{font-size:18px;margin:0}
 
 <script>
 /* =========================
+   ✅ iOS/Safari「押しても反応しない」対策：
+   click + touch を1本化（touchstartのpreventDefault乱用をやめる）
+========================= */
+let __lastTouchAt = 0;
+function bindTap(elOrId, handler){
+  const el = (typeof elOrId === "string") ? document.getElementById(elOrId) : elOrId;
+  if(!el) return;
+
+  // タップ（指を離した瞬間）を正にする
+  el.addEventListener("touchend", (e)=>{
+    __lastTouchAt = Date.now();
+    e.preventDefault(); // iOSの「click遅延/落ち」を抑える
+    handler(e);
+  }, {passive:false});
+
+  // クリック（PC/Android/二次発火用）
+  el.addEventListener("click", (e)=>{
+    // touchend後にclickが二重で来るのを無視
+    if(Date.now() - __lastTouchAt < 500) return;
+    handler(e);
+  });
+}
+
+/* =========================
    🔐 簡易ロック（管理者用）
 ========================= */
 const ADMIN_PASSWORD = "kei591117"; // ←好きな文字列に変更
@@ -476,7 +507,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
     unlock();
   }
 
-  document.getElementById("lockBtn").onclick = ()=>{
+  const doUnlock = ()=>{
     const v = document.getElementById("lockPass").value;
     if(v === ADMIN_PASSWORD){
       unlock();
@@ -484,6 +515,9 @@ document.addEventListener("DOMContentLoaded", ()=>{
       document.getElementById("lockErr").textContent = "パスワードが違います";
     }
   };
+
+  // ✅ ここを bindTap に置換（touchstart保険は撤去）
+  bindTap("lockBtn", doUnlock);
 });
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
@@ -663,7 +697,10 @@ function closeHeartModal(){
   $("heartBack").style.display="none";
   heartTargetPid = "";
 }
-$("btnCloseHeart").onclick = closeHeartModal;
+
+// ✅ ここも bindTap で統一
+bindTap("btnCloseHeart", closeHeartModal);
+
 $("heartBack").addEventListener("click",(e)=>{
   if(e.target === $("heartBack")) closeHeartModal();
 });
@@ -728,10 +765,12 @@ function initNewFold(){
   const open = (saved !== "closed");
   setNewFold(open);
 }
-$("btnToggleNew").onclick = ()=>{
+function toggleNewFold(){
   const isOpen = $("btnToggleNew").getAttribute("aria-expanded") === "true";
   setNewFold(!isOpen);
-};
+}
+// ✅ ここも bindTap に置換
+bindTap("btnToggleNew", toggleNewFold);
 
 /* ===== normalize ===== */
 function zenkakuToHankakuNum(s){
@@ -799,11 +838,17 @@ function normalizeContactWay(v){
   if(u.includes("電話") || u.includes("tel") || u.includes("phone")) return "電話";
   return s;
 }
+
+/* ✅修正：HTMLエスケープ（&quot; を正しく） */
 function escapeHtml(s){
   return String(s??"")
-    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"quot;").replaceAll("'","&#039;");
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
+
 function showAutoBadge(on){
   $("autoBadge").style.display = on ? "inline-flex" : "none";
   $("autoBadge").className = on ? "badge ok" : "badge";
@@ -923,6 +968,8 @@ function applyCustomer(hit){
   showAutoBadge(true);
   hideSuggest();
 }
+
+/* ✅修正：data-hit を encodeURIComponent(JSON) で安全に保持 */
 function buildSuggestItems(list, type){
   const top = list.slice(0, 8);
   const html = `
@@ -933,8 +980,11 @@ function buildSuggestItems(list, type){
         const age = c.age ? `年齢:${c.age}` : "";
         const way = normalizeContactWay(c.contactWay ?? c.contact_method ?? c.contactMethod ?? c.method ?? c["連絡方法"] ?? "");
         const leftSub = [age, way].filter(Boolean).join(" / ");
+
+        const packed = encodeURIComponent(JSON.stringify(c)); // ←ここが肝
+
         return `
-          <div class="item" data-hit='${escapeHtml(JSON.stringify(c))}'>
+          <div class="item" data-hit="${escapeHtml(packed)}">
             <div>
               <div class="main">${escapeHtml(type==="name" ? name : phone)}</div>
               <div class="sub">${escapeHtml(type==="name" ? (phone || "") : (name || ""))}${leftSub ? " / "+escapeHtml(leftSub) : ""}</div>
@@ -947,6 +997,7 @@ function buildSuggestItems(list, type){
   `;
   return html;
 }
+
 function renderSuggest(){
   const nameIn = normalizeName($("pName").value);
   const phoneIn = normalizePhoneLike($("pContact").value);
@@ -979,16 +1030,31 @@ function renderSuggest(){
     $("sugPhone").innerHTML = "";
   }
 }
+
+/* ✅修正：クリック時 decodeURIComponent → JSON.parse（例外も握る） */
 $("sugName").addEventListener("click",(e)=>{
   const item = e.target.closest(".item");
   if(!item) return;
-  applyCustomer(JSON.parse(item.dataset.hit));
+  try{
+    const obj = JSON.parse(decodeURIComponent(item.dataset.hit || ""));
+    applyCustomer(obj);
+  }catch(err){
+    console.error("suggest parse failed", err, item?.dataset?.hit);
+    alert("サジェスト選択に失敗しました（データ形式エラー）");
+  }
 });
 $("sugPhone").addEventListener("click",(e)=>{
   const item = e.target.closest(".item");
   if(!item) return;
-  applyCustomer(JSON.parse(item.dataset.hit));
+  try{
+    const obj = JSON.parse(decodeURIComponent(item.dataset.hit || ""));
+    applyCustomer(obj);
+  }catch(err){
+    console.error("suggest parse failed", err, item?.dataset?.hit);
+    alert("サジェスト選択に失敗しました（データ形式エラー）");
+  }
 });
+
 document.addEventListener("click",(e)=>{
   const inSug = e.target.closest("#sugName") || e.target.closest("#sugPhone");
   const inInputs = e.target.closest("#pName") || e.target.closest("#pContact");
@@ -1325,8 +1391,10 @@ function openResModal(){
 function closeResModal(){
   $("resBack").style.display = "none";
 }
-$("btnOpenRes").onclick = openResModal;
-$("btnCloseRes").onclick = closeResModal;
+// ✅ ここも bindTap に置換
+bindTap("btnOpenRes", openResModal);
+bindTap("btnCloseRes", closeResModal);
+
 $("resBack").addEventListener("click", (e)=>{
   if(e.target === $("resBack")) closeResModal();
 });
@@ -1497,10 +1565,12 @@ function setResTab(next){
   $(map[next]).classList.add("on");
   renderReservations();
 }
-$("tabAll").onclick = ()=>setResTab("all");
-$("tabM").onclick   = ()=>setResTab("M");
-$("tabF").onclick   = ()=>setResTab("F");
-$("tabU").onclick   = ()=>setResTab("U");
+
+// ✅ タブも bindTap に
+bindTap("tabAll", ()=>setResTab("all"));
+bindTap("tabM",   ()=>setResTab("M"));
+bindTap("tabF",   ()=>setResTab("F"));
+bindTap("tabU",   ()=>setResTab("U"));
 
 function buildResCard(p){
   const g = normalizeGender(p.gender);
@@ -1619,9 +1689,11 @@ function clearForm(){
   $("pMemo").value="";
   showAutoBadge(false);
 }
-$("btnClear").onclick = ()=>{ setError(""); clearForm(); };
 
-$("btnSave").onclick = async ()=>{
+// ✅ ボタン系も bindTap にして「押せない」を根絶
+bindTap("btnClear", ()=>{ setError(""); clearForm(); });
+
+bindTap("btnSave", async ()=>{
   setError("");
   try{
     const eventId = $("eventSel").value;
@@ -1680,7 +1752,8 @@ $("btnSave").onclick = async ()=>{
     setStatus("-");
     setError("登録に失敗： " + (err.message || err));
   }
-};
+});
+
 $("q").oninput = renderConfirmed;
 
 /* ★イベント切替：参加確定者を「即表示」→ そのまま裏で最新同期 */
@@ -1699,7 +1772,6 @@ $("eventSel").addEventListener("change", async ()=>{
     return;
   }
 
-  // ★(A) まずキャッシュがあれば“即”描画（読込中表示で上書きしない）
   const cached = getCache(eventId);
   if(cached && Array.isArray(cached.raw)){
     participantsRaw = cached.raw;
@@ -1708,7 +1780,6 @@ $("eventSel").addEventListener("change", async ()=>{
     withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
     setEvStatus("キャッシュ表示→同期中…");
   }else{
-    // キャッシュが無い場合だけ読込中プレースホルダ
     $("listM").innerHTML = `<div class="meta">読込中…</div>`;
     $("listF").innerHTML = `<div class="meta">読込中…</div>`;
     $("resBody").innerHTML = `<div class="meta">読込中…</div>`;
@@ -1716,12 +1787,10 @@ $("eventSel").addEventListener("change", async ()=>{
     setEvStatus("読込中…");
   }
 
-  // ★(B) 最新取得（裏で更新 → 描画）
   try{
     await reloadParticipants(eventId);
     withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
   }catch(err){
-    // キャッシュがあれば画面は維持される（reloadParticipants側の仕様）
     setError("参加者の読み込みに失敗： " + (err.message || err));
   }
 });
@@ -1744,7 +1813,8 @@ function downloadText(filename, text){
   a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href), 500);
 }
-$("btnCsvConfirmed").onclick = ()=>{
+
+bindTap("btnCsvConfirmed", ()=>{
   const ev = getSelectedEvent() || {};
   const eventTitle = (ev.title||ev.name||"event").replace(/[\\\/:*?"<>|]/g,"_");
   const rows = participants
@@ -1770,14 +1840,13 @@ $("btnCsvConfirmed").onclick = ()=>{
   const header = [["名前","性別","年齢","連絡先","連絡方法","割引(円)","参加費(円)","支払い","メモ"]];
   const csv = toCsv([...header, ...rows]);
   downloadText(`確定_${eventTitle}.csv`, csv);
-};
+});
 
 /* ===== 読み込み ===== */
 async function reloadParticipants(eventId){
   const seq = ++loadSeq;
   setEvStatus("参加者読込中…");
 
-  // (A) キャッシュがあれば即表示
   const cached = getCache(eventId);
   if(cached && Array.isArray(cached.raw)){
     participantsRaw = cached.raw;
@@ -1787,7 +1856,6 @@ async function reloadParticipants(eventId){
     setEvStatus("キャッシュ表示");
   }
 
-  // (B) 最新取得（裏で更新）
   try{
     const raw = await apiParticipantsList(eventId);
     if(seq !== loadSeq) return;
@@ -1809,7 +1877,10 @@ async function reloadParticipants(eventId){
   }
 }
 
-/* iOS autofill抑止 */
+/* =========================================================
+   ✅ iOS Safari / iPhone 対策（最重要）
+   readonlyでオートフィル抑止 → 1タップ目で解除して強制フォーカス
+========================================================= */
 function hardDisableIOSAutofill(){
   const name = $("pName");
   const phone = $("pContact");
@@ -1819,13 +1890,22 @@ function hardDisableIOSAutofill(){
   name.setAttribute("name", "nm_" + rnd);
   phone.setAttribute("name", "ph_" + rnd);
 
-  const unlock = (el)=> {
-    el.addEventListener("focus", ()=>{
-      el.removeAttribute("readonly");
-    }, {once:true});
+  const enableFirstTap = (el)=>{
+    const handler = (e)=>{
+      if(el.hasAttribute("readonly")){
+        e.preventDefault();
+        el.removeAttribute("readonly");
+        setTimeout(()=>{
+          try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+        }, 0);
+      }
+    };
+    el.addEventListener("touchstart", handler, {passive:false});
+    el.addEventListener("mousedown", handler);
   };
-  unlock(name);
-  unlock(phone);
+
+  enableFirstTap(name);
+  enableFirstTap(phone);
 }
 
 /* =========================================================
@@ -1840,7 +1920,6 @@ function hardDisableIOSAutofill(){
     setStatus("読込中…");
     setError("");
 
-    // 0) イベント：キャッシュがあれば即表示
     const evCached = getEventsCache();
     if(evCached && Array.isArray(evCached.events) && evCached.events.length){
       events = evCached.events;
@@ -1850,7 +1929,6 @@ function hardDisableIOSAutofill(){
       $("eventSel").innerHTML = `<option value="">読込中…</option>`;
     }
 
-    // 1) イベント最新取得（裏で更新）
     apiEvents().then(list=>{
       if(Array.isArray(list)){
         events = list;
@@ -1870,12 +1948,10 @@ function hardDisableIOSAutofill(){
       }
     });
 
-    // 2) 顧客は裏で
     apiCustomers().then(list=>{
       customers = list || [];
     });
 
-    // 3) 参加者：選択中イベントがあれば、キャッシュを即表示→裏で最新
     const firstId = $("eventSel").value || safeGet(LAST_EVENT_KEY) || "";
     if(firstId){
       const opt = [...$("eventSel").options].find(o=>String(o.value)===String(firstId));
