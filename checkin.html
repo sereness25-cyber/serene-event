@@ -22,22 +22,34 @@ body{
 header{display:flex;gap:12px;padding-bottom:12px}
 .brand{display:flex;align-items:center;gap:10px}
 .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
-.btn{border:1px solid var(--line);background:#fff;padding:6px 10px;border-radius:10px;font-size:12px}
+.btn{border:1px solid var(--line);background:#fff;padding:6px 10px;border-radius:10px;font-size:12px;cursor:pointer}
 .btn.ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08)}
+.btn.sub{background:#f8fafc}
 .input{border:1px solid var(--line);padding:6px 10px;border-radius:10px}
-.feeInput{width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;text-align:right}
-.badge{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line)}
+.feeInput{width:110px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;text-align:right}
+.noInput{width:88px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;text-align:right}
+.badge{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);display:inline-flex;align-items:center;gap:6px}
 .badge.ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08)}
-.main{display:grid;grid-template-columns:1fr 1.6fr;gap:12px}
+.badge.no{border-color:#c7d2fe;background:#eef2ff}
+.main{display:grid;grid-template-columns:1fr 1.7fr;gap:12px}
 @media(max-width:900px){.main{grid-template-columns:1fr}}
 .card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
-.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.hd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .bd{padding:12px 14px}
-.pItem{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.pLeft{min-width:220px}
-.pName{font-weight:900}
-.pMeta{font-size:12px;color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:900px){.split{grid-template-columns:1fr}}
+.box{border-radius:16px;border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden}
+.boxHd{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.boxBd{padding:12px 14px}
+.box.male{background:#eff6ff;border-color:#bfdbfe}
+.box.female{background:#fff1f2;border-color:#fecdd3}
+.pItem{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#fff}
+.pLeft{min-width:240px}
+.pName{font-weight:900;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pMeta{font-size:12px;color:var(--muted);margin-top:4px}
 .pRight{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.hr{height:1px;background:var(--line);margin:10px 0}
 </style>
 </head>
 
@@ -48,8 +60,8 @@ header{display:flex;gap:12px;padding-bottom:12px}
   <div class="brand">
     <div class="logo"></div>
     <div>
-      <h1>当日チェックイン</h1>
-      <div style="font-size:12px;color:#6b7280">※ 参加確定者のみ表示</div>
+      <h1 style="margin:0;font-size:18px">当日チェックイン</h1>
+      <div style="font-size:12px;color:#6b7280">※ 参加確定者のみ表示（確定一覧の割引/料金を反映）／受付番号は編集OK</div>
     </div>
   </div>
 </header>
@@ -62,6 +74,7 @@ header{display:flex;gap:12px;padding-bottom:12px}
     <input type="date" class="input" id="evDate">
     <div style="height:8px"></div>
     <div id="evList"></div>
+    <div class="small" style="margin-top:10px">日付で絞り込みできます</div>
   </div>
 </section>
 
@@ -72,7 +85,34 @@ header{display:flex;gap:12px;padding-bottom:12px}
     <span class="badge" id="sumAll">合計 ¥0</span>
     <span class="badge ok" id="sumIn">IN ¥0</span>
   </div>
-  <div class="bd" id="pBody"></div>
+  <div class="bd">
+    <div class="split">
+      <section class="box male">
+        <div class="boxHd">
+          <strong>👨 男性</strong>
+          <span class="small" id="cntM">0名</span>
+          <div style="flex:1"></div>
+          <span class="badge" id="sumAllM">合計 ¥0</span>
+          <span class="badge ok" id="sumInM">IN ¥0</span>
+        </div>
+        <div class="boxBd" id="pBodyM"></div>
+      </section>
+
+      <section class="box female">
+        <div class="boxHd">
+          <strong>👩 女性</strong>
+          <span class="small" id="cntF">0名</span>
+          <div style="flex:1"></div>
+          <span class="badge" id="sumAllF">合計 ¥0</span>
+          <span class="badge ok" id="sumInF">IN ¥0</span>
+        </div>
+        <div class="boxBd" id="pBodyF"></div>
+      </section>
+    </div>
+
+    <div class="hr"></div>
+    <div class="small">※受付番号はローカル保存（端末/ブラウザごと）。別端末でも共有したい場合はGAS側に保存APIを追加します。</div>
+  </div>
 </section>
 
 </div>
@@ -82,81 +122,304 @@ header{display:flex;gap:12px;padding-bottom:12px}
 const API_URL="https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
 const ADMIN_KEY="kei591117";
 const $=id=>document.getElementById(id);
-const yen=n=>"¥"+Number(n||0).toLocaleString();
+const yen=n=>"¥"+Number(n||0).toLocaleString("ja-JP");
 
-let events=[],participants=[],selectedDate=null;
+let events=[], participants=[], selectedDate=null;
+let selectedEventId = "";
+let selectedEvent = null;
 
+/* ========= 共通 ========= */
+function safeInt(v){
+  const n = Number(String(v ?? "").replace(/[^\d]/g,""));
+  return Number.isFinite(n) ? n : 0;
+}
+function normGender(v){
+  const s=String(v??"").trim().toUpperCase();
+  if(s==="M"||s==="MALE"||s==="男"||s==="男性") return "M";
+  if(s==="F"||s==="FEMALE"||s==="女"||s==="女性") return "F";
+  return "";
+}
 function evDateStr(ev){
   const d=new Date(ev.date||ev.eventDate||ev.startDate);
   if(isNaN(d)) return "";
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-function getFee(p){
-  return Number(p.fee ?? p.price ?? p.amount ?? p["参加費"] ?? p["料金"] ?? 0);
-}
-function calcSum(){
-  let all=0,inSum=0;
-  participants.forEach(p=>{
-    const f=getFee(p);
-    all+=f;
-    if(p.checkedIn) inSum+=f;
-  });
-  $("sumAll").textContent=`合計 ${yen(all)}`;
-  $("sumIn").textContent=`IN ${yen(inSum)}`;
+function getBasePriceFromEvent(gender){
+  const ev = selectedEvent || {};
+  const m = ev.priceM ?? ev.malePrice ?? ev.mPrice ?? ev.m_fee ?? ev["男性料金"] ?? ev["男性参加費"];
+  const f = ev.priceF ?? ev.femalePrice ?? ev.fPrice ?? ev.f_fee ?? ev["女性料金"] ?? ev["女性参加費"];
+  const uni = ev.price ?? ev.fee ?? ev.basePrice ?? ev["基本料金"] ?? ev["参加費"];
+  const raw = (gender==="M" && m!=null) ? m : (gender==="F" && f!=null) ? f : uni;
+  return safeInt(raw);
 }
 
+/* ========= 受付番号（ローカルで安定付番／編集可） ========= */
+function rcKey(eventId){ return `checkin_receipt_map_v1_${String(eventId||"")}`; }
+function loadReceiptMap(eventId){
+  try{ return JSON.parse(localStorage.getItem(rcKey(eventId)) || "{}") || {}; }catch(_){ return {}; }
+}
+function saveReceiptMap(eventId, map){
+  try{ localStorage.setItem(rcKey(eventId), JSON.stringify(map||{})); }catch(_){}
+}
+function getReceiptNoField(p){
+  return p.receiptNo ?? p.receipt_no ?? p.receptionNo ?? p.reception_no ?? p.no ?? p.number ?? p["受付番号"] ?? p["受付NO"] ?? "";
+}
+function assignReceiptNumbers(eventId, list){
+  const map = loadReceiptMap(eventId);
+
+  // 既存最大
+  let maxNo = 0;
+  Object.values(map).forEach(v=>{
+    const n = safeInt(v);
+    if(n>maxNo) maxNo=n;
+  });
+
+  // まず「確定一覧に元々ある受付番号」を優先的に反映
+  for(const p of list){
+    const pid = String(p.pid ?? p.participantId ?? p.id ?? "");
+    if(!pid) continue;
+    const rawNo = getReceiptNoField(p);
+    const n = safeInt(rawNo);
+    if(n>0) map[pid] = n;
+  }
+
+  // まだ無い人に新規付番（createdAt/updatedAtで並べて安定）
+  const need = list
+    .map(p=>({p, pid:String(p.pid ?? p.participantId ?? p.id ?? "")}))
+    .filter(x=>x.pid && !safeInt(map[x.pid]))
+    .sort((a,b)=>{
+      const ta = Date.parse(a.p.createdAt||a.p.updatedAt||"") || 0;
+      const tb = Date.parse(b.p.createdAt||b.p.updatedAt||"") || 0;
+      if(ta!==tb) return ta-tb;
+      return String(a.p.name||"").localeCompare(String(b.p.name||""),"ja");
+    });
+
+  for(const x of need){
+    maxNo += 1;
+    map[x.pid] = maxNo;
+  }
+
+  saveReceiptMap(eventId, map);
+
+  // listへ反映（表示用）
+  list.forEach(p=>{
+    const pid = String(p.pid ?? p.participantId ?? p.id ?? "");
+    p.receiptNo = safeInt(map[pid]) || safeInt(getReceiptNoField(p)) || 0;
+  });
+}
+function setReceiptNo(pid, no){
+  if(!selectedEventId) return;
+  const map = loadReceiptMap(selectedEventId);
+  const n = safeInt(no);
+  if(n<=0){
+    delete map[String(pid)];
+  }else{
+    map[String(pid)] = n;
+  }
+  saveReceiptMap(selectedEventId, map);
+
+  const p = participants.find(x=>String(x.pid)===String(pid));
+  if(p) p.receiptNo = n;
+
+  render(); // 並び替えも反映
+}
+
+/* ========= 金額（確定一覧から読込 → 計算して表示） ========= */
+function getDiscountYen(p){
+  return safeInt(p.discountYen ?? p.discount ?? p.discount_yen ?? p.discountAmount ?? p["割引"] ?? p["割引（円）"] ?? 0);
+}
+function getFee(p){
+  const stored = p.fee ?? p.price ?? p.amount ?? p["参加費"] ?? p["料金"];
+  const storedN = safeInt(stored);
+  if(storedN > 0) return storedN;
+
+  const g = normGender(p.gender);
+  const base = getBasePriceFromEvent(g);
+  const disc = getDiscountYen(p);
+  return Math.max(0, base - disc);
+}
+
+/* ========= 集計（全体＋男女別） ========= */
+function calcSums(){
+  const listM = participants.filter(p=>normGender(p.gender)==="M");
+  const listF = participants.filter(p=>normGender(p.gender)==="F");
+
+  const sum = (list, onlyIn)=>{
+    return list.reduce((a,p)=>{
+      if(onlyIn && !p.checkedIn) return a;
+      return a + getFee(p);
+    },0);
+  };
+
+  const all = sum(participants,false);
+  const inAll = sum(participants,true);
+
+  const allM = sum(listM,false);
+  const inM  = sum(listM,true);
+
+  const allF = sum(listF,false);
+  const inF  = sum(listF,true);
+
+  $("sumAll").textContent=`合計 ${yen(all)}`;
+  $("sumIn").textContent=`IN ${yen(inAll)}`;
+
+  $("sumAllM").textContent=`合計 ${yen(allM)}`;
+  $("sumInM").textContent=`IN ${yen(inM)}`;
+
+  $("sumAllF").textContent=`合計 ${yen(allF)}`;
+  $("sumInF").textContent=`IN ${yen(inF)}`;
+
+  $("cntM").textContent = `${listM.length}名`;
+  $("cntF").textContent = `${listF.length}名`;
+}
+
+/* ========= 初期読込 ========= */
 async function load(){
-  const r=await fetch(API_URL+"?action=list").then(r=>r.json());
+  const r=await fetch(API_URL+"?action=list", {cache:"no-store"}).then(r=>r.json());
   events=r.events||[];
   renderEvents();
 }
 function renderEvents(){
   $("evList").innerHTML=events
     .filter(e=>!selectedDate || evDateStr(e)===selectedDate)
-    .map(e=>`<div class="btn" onclick="selectEvent('${e.id}')">${e.title}</div>`)
+    .sort((a,b)=>String(evDateStr(b)||"").localeCompare(String(evDateStr(a)||"")))
+    .map(e=>{
+      const d = evDateStr(e);
+      const title = e.title || e.name || "(無題)";
+      return `<div class="btn" onclick="selectEvent('${String(e.id).replaceAll("'","\\'")}')">${d ? d+"｜" : ""}${title}</div>`;
+    })
     .join("");
 }
 $("evDate").onchange=()=>{selectedDate=$("evDate").value;renderEvents();};
 
-window.selectEvent=async id=>{
-  const r=await fetch(API_URL+`?action=participants:list&eventId=${id}`).then(r=>r.json());
+window.selectEvent=async (id)=>{
+  selectedEventId = String(id||"");
+  selectedEvent = events.find(e=>String(e.id)===String(id)) || null;
 
-  // ★ 確定者のみ ★
+  const title = selectedEvent?.title || selectedEvent?.name || "イベント";
+  const d = evDateStr(selectedEvent||{}) || "";
+  $("evTitle").textContent = d ? `${d}｜${title}` : title;
+
+  const r=await fetch(API_URL+`?action=participants:list&eventId=${encodeURIComponent(id)}&nocache=1&t=${Date.now()}`, {cache:"no-store"})
+    .then(r=>r.json());
+
   participants=(r.participants||[]).filter(p=>{
     const s=String(p.status||p.state||"").toLowerCase();
     return s==="confirmed" || s==="確定" || s==="参加";
   });
 
+  // 受付番号を付番（or 既存フィールドから読込）
+  assignReceiptNumbers(selectedEventId, participants);
+
+  // 初期ソート（受付番号→名前）
+  sortParticipants();
+
   render();
 };
 
-function render(){
-  $("pBody").innerHTML=participants.map(p=>`
-    <div class="pItem">
-      <div class="pLeft">
-        <div class="pName">${p.name||""}</div>
-        <div class="pMeta">${p.gender||""}</div>
-      </div>
-      <div class="pRight">
-        <input class="feeInput" value="${getFee(p)}" oninput="updateFee('${p.pid}',this.value)">
-        <button class="btn ok" onclick="toggleCheck('${p.pid}')">${p.checkedIn?"IN":"チェック"}</button>
-      </div>
-    </div>
-  `).join("");
-  calcSum();
+function sortParticipants(){
+  participants.sort((a,b)=>{
+    const na = safeInt(a.receiptNo);
+    const nb = safeInt(b.receiptNo);
+    if(na!==nb) return na-nb;
+    const ga = normGender(a.gender), gb = normGender(b.gender);
+    if(ga!==gb) return ga.localeCompare(gb); // M→F（表示は分けるけど安定のため）
+    return String(a.name||"").localeCompare(String(b.name||""),"ja");
+  });
 }
 
-window.updateFee=(pid,v)=>{
-  const p=participants.find(x=>x.pid===pid);
-  p.fee=Number(v||0);
-  calcSum();
-  fetch(API_URL,{method:"POST",body:JSON.stringify({action:"participants:setFee",key:ADMIN_KEY,pid,fee:p.fee})});
+function renderList(list, mountId){
+  const mount = $(mountId);
+  if(!list.length){
+    mount.innerHTML = `<div class="small">参加確定者がいません</div>`;
+    return;
+  }
+
+  mount.innerHTML = list.map(p=>{
+    const pid = String(p.pid ?? p.participantId ?? p.id ?? "");
+    const no = safeInt(p.receiptNo) || 0;
+    const g = normGender(p.gender);
+    const gLabel = g==="M" ? "男性" : g==="F" ? "女性" : (p.gender||"");
+    const disc = getDiscountYen(p);
+    const base = getBasePriceFromEvent(g);
+    const fee  = getFee(p);
+
+    return `
+      <div class="pItem">
+        <div class="pLeft">
+          <div class="pName">
+            <span class="badge no">受付</span>
+            <input class="noInput" inputmode="numeric" value="${no||""}"
+              oninput="updateReceiptNo('${pid.replaceAll("'","\\'")}', this.value)"
+              placeholder="番号">
+            <span>${p.name||""}</span>
+            ${p.checkedIn ? `<span class="badge ok">IN</span>` : ``}
+          </div>
+          <div class="pMeta">
+            ${gLabel ? `性別:${gLabel}` : ``}
+            ${base ? ` ｜ 基本:${yen(base)}` : ``}
+            ${disc ? ` ｜ 割引:-${yen(disc)}` : ``}
+          </div>
+        </div>
+        <div class="pRight">
+          <input class="feeInput" value="${fee}" inputmode="numeric" oninput="updateFee('${pid.replaceAll("'","\\'")}',this.value)">
+          <button class="btn ok" onclick="toggleCheck('${pid.replaceAll("'","\\'")}')">${p.checkedIn?"IN":"チェック"}</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function render(){
+  if(!participants.length){
+    $("pBodyM").innerHTML = `<div class="small">参加確定者がいません</div>`;
+    $("pBodyF").innerHTML = `<div class="small">参加確定者がいません</div>`;
+    calcSums();
+    return;
+  }
+
+  sortParticipants();
+
+  const men   = participants.filter(p=>normGender(p.gender)==="M");
+  const women = participants.filter(p=>normGender(p.gender)==="F");
+
+  renderList(men, "pBodyM");
+  renderList(women, "pBodyF");
+
+  calcSums();
+}
+
+/* ========= 受付番号 編集 ========= */
+window.updateReceiptNo=(pid, v)=>{
+  setReceiptNo(pid, v);
 };
-window.toggleCheck=pid=>{
-  const p=participants.find(x=>x.pid===pid);
+
+/* ========= 金額 上書き（任意） ========= */
+window.updateFee=(pid,v)=>{
+  const p=participants.find(x=>String(x.pid)===String(pid));
+  if(!p) return;
+  p.fee=safeInt(v||0);
+  calcSums();
+
+  fetch(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({action:"participants:setFee",key:ADMIN_KEY,pid,fee:p.fee})
+  }).catch(()=>{});
+};
+
+/* ========= チェックイン ========= */
+window.toggleCheck=(pid)=>{
+  const p=participants.find(x=>String(x.pid)===String(pid));
+  if(!p) return;
   p.checkedIn=!p.checkedIn;
   render();
-  fetch(API_URL,{method:"POST",body:JSON.stringify({action:"participants:checkin",key:ADMIN_KEY,pid})});
+
+  fetch(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" },
+    body: JSON.stringify({action:"participants:checkin",key:ADMIN_KEY,pid})
+  }).catch(()=>{});
 };
 
 load();
