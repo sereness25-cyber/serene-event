@@ -157,6 +157,9 @@ h1{font-size:18px;margin:0}
   border:1px solid var(--line);
   font-size:12px;
 }
+.campInput{
+  width:140px;
+}
 
 /* ===== 集計＆支払い ===== */
 .sumBar{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -217,7 +220,6 @@ h1{font-size:18px;margin:0}
 </head>
 
 <body>
-<!-- 🔐 ロック画面 -->
 <div id="lockScreen" style="
   position:fixed; inset:0; background:#f6f7fb;
   display:flex; align-items:center; justify-content:center;
@@ -277,7 +279,6 @@ h1{font-size:18px;margin:0}
   </div>
 </section>
 
-<!-- ★新規登録カード（折りたたみ対応） -->
 <section class="card" style="margin-top:14px" id="newCard">
   <div class="hd">
     <div class="hdRow">
@@ -407,14 +408,12 @@ h1{font-size:18px;margin:0}
 
 </div>
 
-<!-- 予約一覧ボタン（画面下固定） -->
 <div class="bottomBar">
   <button class="btnLike" id="btnOpenRes" type="button">
     📋 予約一覧を開く（<span id="cntR">0</span>件）
   </button>
 </div>
 
-<!-- 予約一覧モーダル -->
 <div class="modalBack" id="resBack">
   <div class="modal">
     <div class="modalHd">
@@ -437,7 +436,6 @@ h1{font-size:18px;margin:0}
   </div>
 </div>
 
-<!-- カップル成立モーダル -->
 <div class="modalBack heartModal" id="heartBack">
   <div class="modal">
     <div class="modalHd">
@@ -466,16 +464,13 @@ function bindTap(elOrId, handler){
   const el = (typeof elOrId === "string") ? document.getElementById(elOrId) : elOrId;
   if(!el) return;
 
-  // タップ（指を離した瞬間）を正にする
   el.addEventListener("touchend", (e)=>{
     __lastTouchAt = Date.now();
-    e.preventDefault(); // iOSの「click遅延/落ち」を抑える
+    e.preventDefault();
     handler(e);
   }, {passive:false});
 
-  // クリック（PC/Android/二次発火用）
   el.addEventListener("click", (e)=>{
-    // touchend後にclickが二重で来るのを無視
     if(Date.now() - __lastTouchAt < 500) return;
     handler(e);
   });
@@ -484,7 +479,7 @@ function bindTap(elOrId, handler){
 /* =========================
    🔐 簡易ロック（管理者用）
 ========================= */
-const ADMIN_PASSWORD = "kei591117"; // ←好きな文字列に変更
+const ADMIN_PASSWORD = "kei591117";
 
 function safeGet(k){
   try{ return localStorage.getItem(k); }catch(_){ return null; }
@@ -516,8 +511,18 @@ document.addEventListener("DOMContentLoaded", ()=>{
     }
   };
 
-  // ✅ ここを bindTap に置換（touchstart保険は撤去）
   bindTap("lockBtn", doUnlock);
+
+  document.getElementById("lockPass").addEventListener("keydown", e=>{
+    if(e.key==="Enter"){
+      doUnlock();
+    }
+  });
+});
+document.getElementById("lockPass").addEventListener("keydown", e=>{
+  if(e.key==="Enter"){
+    document.getElementById("lockBtn").click();
+  }
 });
 
 const API_URL = "https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
@@ -572,6 +577,30 @@ async function runDiscWorker(){
 function requestDiscountSave(pid, value){
   discQueue.set(pid, value);
   runDiscWorker();
+}
+
+/* ===== ★キャンペーン保存：1本化キュー ===== */
+const campQueue = new Map(); // pid -> latestValue
+let campWorkerRunning = false;
+
+async function runCampWorker(){
+  if(campWorkerRunning) return;
+  campWorkerRunning = true;
+
+  while(campQueue.size){
+    const [pid, value] = campQueue.entries().next().value;
+    campQueue.delete(pid);
+
+    await saveCampaignOnlyWithRetry(pid, value);
+    await sleep(150);
+  }
+
+  campWorkerRunning = false;
+}
+
+function requestCampaignSave(pid, value){
+  campQueue.set(pid, value);
+  runCampWorker();
 }
 
 // ===== ★高速化：イベント別キャッシュ（即表示→裏で更新） =====
@@ -646,16 +675,29 @@ function captureDiscountFocus(){
   const el = document.activeElement;
   if(el && el.matches && el.matches('input[data-discount]')){
     return {
+      type: 'discount',
       pid: el.dataset.discount,
       start: el.selectionStart,
       end: el.selectionEnd
     };
+  } else if (el && el.matches && el.matches('input[data-campaign]')) {
+      return {
+          type: 'campaign',
+          pid: el.dataset.campaign,
+          start: el.selectionStart,
+          end: el.selectionEnd
+      };
   }
   return null;
 }
 function restoreDiscountFocus(info){
   if(!info || !info.pid) return;
-  const el = document.querySelector(`input[data-discount="${CSS.escape(info.pid)}"]`);
+  let el;
+  if(info.type === 'discount'){
+      el = document.querySelector(`input[data-discount="${CSS.escape(info.pid)}"]`);
+  } else if (info.type === 'campaign') {
+      el = document.querySelector(`input[data-campaign="${CSS.escape(info.pid)}"]`);
+  }
   if(!el) return;
   try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
   try{
@@ -698,7 +740,6 @@ function closeHeartModal(){
   heartTargetPid = "";
 }
 
-// ✅ ここも bindTap で統一
 bindTap("btnCloseHeart", closeHeartModal);
 
 $("heartBack").addEventListener("click",(e)=>{
@@ -769,7 +810,6 @@ function toggleNewFold(){
   const isOpen = $("btnToggleNew").getAttribute("aria-expanded") === "true";
   setNewFold(!isOpen);
 }
-// ✅ ここも bindTap に置換
 bindTap("btnToggleNew", toggleNewFold);
 
 /* ===== normalize ===== */
@@ -818,6 +858,22 @@ function getBasePriceFromEvent(gender){
   const n = safeInt(raw);
   return Number.isFinite(n) ? n : 0;
 }
+
+/* =========================
+   ★追加：受付番号＆金額の扱い
+   - amountProvided が true の人は amountYen を優先表示
+   - なければ（基本 - 割引）を表示
+========================= */
+function getReceiptNo(p){
+  return String(p?.receiptNo ?? p?.receptionNo ?? p?.受付番号 ?? p?.no ?? p?.番号 ?? "").trim();
+}
+function getFinalFee(p){
+  if(p && p.amountProvided) return Math.max(0, safeInt(p.amountYen));
+  const base = getBasePriceFromEvent(normalizeGender(p?.gender));
+  const disc = safeInt(p?.discountYen);
+  return Math.max(0, base - disc);
+}
+
 function displayPhone(v){
   const d = normalizePhoneLike(v);
   if(!d) return "";
@@ -839,7 +895,6 @@ function normalizeContactWay(v){
   return s;
 }
 
-/* ✅修正：HTMLエスケープ（&quot; を正しく） */
 function escapeHtml(s){
   return String(s??"")
     .replaceAll("&","&amp;")
@@ -969,7 +1024,6 @@ function applyCustomer(hit){
   hideSuggest();
 }
 
-/* ✅修正：data-hit を encodeURIComponent(JSON) で安全に保持 */
 function buildSuggestItems(list, type){
   const top = list.slice(0, 8);
   const html = `
@@ -981,7 +1035,7 @@ function buildSuggestItems(list, type){
         const way = normalizeContactWay(c.contactWay ?? c.contact_method ?? c.contactMethod ?? c.method ?? c["連絡方法"] ?? "");
         const leftSub = [age, way].filter(Boolean).join(" / ");
 
-        const packed = encodeURIComponent(JSON.stringify(c)); // ←ここが肝
+        const packed = encodeURIComponent(JSON.stringify(c));
 
         return `
           <div class="item" data-hit="${escapeHtml(packed)}">
@@ -1031,7 +1085,6 @@ function renderSuggest(){
   }
 }
 
-/* ✅修正：クリック時 decodeURIComponent → JSON.parse（例外も握る） */
 $("sugName").addEventListener("click",(e)=>{
   const item = e.target.closest(".item");
   if(!item) return;
@@ -1040,7 +1093,7 @@ $("sugName").addEventListener("click",(e)=>{
     applyCustomer(obj);
   }catch(err){
     console.error("suggest parse failed", err, item?.dataset?.hit);
-    alert("サジェスト選択に失敗しました（データ形式エラー）");
+    alert("サジェスト選択に失敗しました");
   }
 });
 $("sugPhone").addEventListener("click",(e)=>{
@@ -1051,7 +1104,7 @@ $("sugPhone").addEventListener("click",(e)=>{
     applyCustomer(obj);
   }catch(err){
     console.error("suggest parse failed", err, item?.dataset?.hit);
-    alert("サジェスト選択に失敗しました（データ形式エラー）");
+    alert("サジェスト選択に失敗しました");
   }
 });
 
@@ -1065,9 +1118,20 @@ document.addEventListener("click",(e)=>{
 function normalizeParticipants(raw){
   const list = raw.map(p=>{
     const pid = String(p.pid ?? p.participantId ?? p.id ?? "").trim();
+
     const paidRaw = (p.paid ?? p.isPaid ?? p.payment ?? p["支払い"] ?? "");
     const paidStr = String(paidRaw ?? "").trim().toLowerCase();
     const paid = paidStr==="true" || paidStr==="1" || paidStr==="済" || paidStr==="paid";
+
+    const receiptNoRaw =
+      p.receiptNo ?? p.receptionNo ?? p.receptionNumber ?? p.checkinNo ?? p["受付番号"] ?? p["受付No"] ?? p["受付"] ?? p["番号"] ?? p.no ?? "";
+    const receiptNo = String(receiptNoRaw ?? "").trim();
+
+    const amountRaw =
+      p.amountYen ?? p.amount ?? p.feeYen ?? p.fee ?? p.priceYen ?? p.price ?? p["金額"] ?? p["参加費"] ?? p["支払金額"] ?? p["請求"] ?? "";
+    const amountProvided = !(amountRaw === null || amountRaw === undefined || String(amountRaw).trim() === "");
+    const amountYen = amountProvided ? safeInt(amountRaw) : 0;
+
     return {
       ...p,
       pid,
@@ -1077,7 +1141,13 @@ function normalizeParticipants(raw){
       contactWay: normalizeContactWay(p.contactWay ?? p.contact_method ?? p.contactMethod ?? p.method ?? p["連絡方法"] ?? p["連絡手段"] ?? ""),
       coupleColor: String(p.coupleColor ?? p.couple ?? p.heartColor ?? p.heart ?? "").trim(),
       discountYen: safeInt(p.discountYen ?? p.discount ?? p.discount_yen ?? p.discountAmount ?? p["割引"] ?? p["割引（円）"] ?? 0),
+      campaign: String(p.campaign ?? p.campaign_name ?? p["キャンペーン"] ?? "").trim(),
       paid,
+
+      receiptNo,
+      amountProvided,
+      amountYen,
+
       updatedAt: p.updatedAt || p.ts || p.timestamp || "",
       createdAt: p.createdAt || ""
     };
@@ -1120,7 +1190,10 @@ async function setCoupleColor(pid, color){
       status: normalizeStatus(p.status),
       coupleColor: color || "",
       discountYen: safeInt(p.discountYen || 0),
+      campaign: p.campaign || "",
       paid: !!p.paid,
+      receiptNo: p.receiptNo || "",
+      amountYen: p.amountProvided ? safeInt(p.amountYen) : "",
       updatedAt: nowIso()
     });
 
@@ -1136,7 +1209,7 @@ async function setCoupleColor(pid, color){
 /* =========================================================
    割引欄：draft保持＋即反映＋保存
 ========================================================= */
-const discountDraft = new Map();  // pid -> string
+const discountDraft = new Map();
 
 function getDraftDiscountValue(pid, fallback){
   if(!pid) return fallback;
@@ -1152,25 +1225,43 @@ function clearDraft(pid){
   discountDraft.delete(pid);
 }
 
+/* =========================================================
+   キャンペーン欄：draft保持＋即反映＋保存
+========================================================= */
+const campaignDraft = new Map();
+
+function getDraftCampaignValue(pid, fallback){
+  if(!pid) return fallback;
+  if(campaignDraft.has(pid)) return campaignDraft.get(pid);
+  return String(fallback ?? "");
+}
+function setCampaignDraft(pid, v){
+  if(!pid) return;
+  campaignDraft.set(pid, String(v ?? ""));
+}
+function clearCampaignDraft(pid){
+  if(!pid) return;
+  campaignDraft.delete(pid);
+}
+
 const debounceTimers = new Map();
 function debounceByKey(key, fn, ms){
   if(debounceTimers.has(key)) clearTimeout(debounceTimers.get(key));
   debounceTimers.set(key, setTimeout(()=>{ debounceTimers.delete(key); fn(); }, ms));
 }
 
-/* ★割引入力中に「表示だけ」更新する（＋participantsにも即反映） */
+/* ★割引入力中に「表示だけ」更新する */
 function updatePriceDisplayOnly(pid, draftValue){
   const p = participants.find(x=>x.pid===pid);
   if(!p) return;
 
   const disc = Math.max(0, safeInt(draftValue));
-
   p.discountYen = disc;
   p.updatedAt = nowIso();
 
   const g = normalizeGender(p.gender);
   const base = getBasePriceFromEvent(g);
-  const fee  = Math.max(0, base - disc);
+  const fee = getFinalFee(p);
 
   document.querySelectorAll(`input[data-discount="${CSS.escape(pid)}"]`)
     .forEach(inp=>{
@@ -1186,7 +1277,16 @@ function updatePriceDisplayOnly(pid, draftValue){
   recalcSummaryOnly();
 }
 
-/* ★確定一覧の合計だけを再計算（DOM再描画しない） */
+/* ★キャンペーン入力中に「表示だけ」更新する */
+function updateCampaignDisplayOnly(pid, draftValue){
+    const p = participants.find(x=>x.pid===pid);
+    if(!p) return;
+    p.campaign = draftValue;
+    p.updatedAt = nowIso();
+}
+
+
+/* ★確定一覧の合計だけを再計算 */
 function recalcSummaryOnly(){
   const q = ($("q")?.value || "").trim().toLowerCase();
   const confirmed = participants.filter(p => normalizeStatus(p.status) === "confirmed");
@@ -1198,11 +1298,7 @@ function recalcSummaryOnly(){
     : confirmed;
 
   const discSum = filtered.reduce((a,x)=>a+safeInt(x.discountYen),0);
-  const feeSum  = filtered.reduce((a,x)=>{
-    const b = getBasePriceFromEvent(normalizeGender(x.gender));
-    const d = safeInt(x.discountYen);
-    return a + Math.max(0, b-d);
-  },0);
+  const feeSum  = filtered.reduce((a,x)=>a + getFinalFee(x), 0);
   const unpaidCount = filtered.filter(x=>!x.paid).length;
 
   $("sumC_cnt").textContent   = String(filtered.length);
@@ -1241,7 +1337,10 @@ async function saveDiscountOnlyWithRetry(pid, value){
         status: normalizeStatus(p.status),
         coupleColor: p.coupleColor || "",
         discountYen: d,
+        campaign: p.campaign || "",
         paid: !!p.paid,
+        receiptNo: p.receiptNo || "",
+        amountYen: p.amountProvided ? safeInt(p.amountYen) : "",
         updatedAt: nowIso()
       });
 
@@ -1263,6 +1362,60 @@ async function saveDiscountOnlyWithRetry(pid, value){
   setStatus("-");
   setError("割引の保存に失敗： " + (lastErr?.message || lastErr));
 }
+
+/* キャンペーン保存 */
+async function saveCampaignOnlyWithRetry(pid, value){
+    const eventId = $("eventSel").value;
+    if(!eventId) return;
+
+    const p = participants.find(x=>x.pid===pid);
+    if(!p) return;
+
+    p.campaign = value;
+    p.updatedAt = nowIso();
+    setStatus("キャンペーンを保存中…");
+
+    let lastErr = null;
+    for(let i=0;i<3;i++){
+      try{
+        await apiParticipantsUpsert({
+          eventId,
+          pid: p.pid,
+          name: p.name || "",
+          gender: normalizeGender(p.gender),
+          age: p.age || "",
+          contact: displayPhone(p.contact || ""),
+          contactWay: normalizeContactWay(p.contactWay || ""),
+          memo: p.memo || "",
+          status: normalizeStatus(p.status),
+          coupleColor: p.coupleColor || "",
+          discountYen: safeInt(p.discountYen || 0),
+          campaign: value,
+          paid: !!p.paid,
+          receiptNo: p.receiptNo || "",
+          amountYen: p.amountProvided ? safeInt(p.amountYen) : "",
+          updatedAt: nowIso()
+        });
+
+        clearCampaignDraft(pid);
+        setStatus("キャンペーンを保存しました");
+        return;
+
+      }catch(err){
+        lastErr = err;
+        const msg = String(err?.message || err || "");
+        if(msg.includes("ロック") || msg.includes("Lock") || msg.includes("timeout")){
+          await new Promise(r=>setTimeout(r, 400*(i+1)));
+          continue;
+        }
+        break;
+      }
+    }
+
+    setStatus("-");
+    setError("キャンペーンの保存に失敗： " + (lastErr?.message || lastErr));
+  }
+
 
 /* ===== 支払いトグル ===== */
 async function togglePaid(pid){
@@ -1288,7 +1441,10 @@ async function togglePaid(pid){
       status: normalizeStatus(p.status),
       coupleColor: p.coupleColor || "",
       discountYen: safeInt(p.discountYen || 0),
+      campaign: p.campaign || "",
       paid: next,
+      receiptNo: p.receiptNo || "",
+      amountYen: p.amountProvided ? safeInt(p.amountYen) : "",
       updatedAt: nowIso()
     });
 
@@ -1327,19 +1483,23 @@ function renderConfirmed(){
       const heart = heartEmoji(p.coupleColor);
       const base = getBasePriceFromEvent(normalizeGender(p.gender));
       const disc = safeInt(p.discountYen);
-      const fee  = Math.max(0, base - disc);
+      const fee  = getFinalFee(p);
+
+      const receiptNo = getReceiptNo(p);
 
       const payBadge = p.paid
         ? `<span class="payBadge paid">✅支払済</span>`
         : `<span class="payBadge unpaid">💰未払い</span>`;
 
       const discVal = getDraftDiscountValue(p.pid, safeInt(p.discountYen)||0);
+      const campVal = getDraftCampaignValue(p.pid, p.campaign || "");
 
       return `
         <div class="pCard ${sex}">
           <div>
             <div class="pName">
               <span>${escapeHtml(p.name||"-")}</span>
+              ${receiptNo ? `<span class="badge ok">受付:${escapeHtml(receiptNo)}</span>` : ``}
               ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
               ${payBadge}
             </div>
@@ -1347,15 +1507,18 @@ function renderConfirmed(){
               年齢:${escapeHtml(p.age||"-")}
               ｜連絡先:${escapeHtml(p.contact||"-")}
               ｜連絡方法:${escapeHtml(p.contactWay||"-")}
+              ${receiptNo ? `｜受付番号:${escapeHtml(receiptNo)}` : ``}
             </div>
             <div class="priceRow">
               <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
               <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
-              <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+              <span class="pill">金額 <strong>${fmtYen(fee)}</strong></span>
+              ${p.amountProvided ? `<span class="badge ok">確定一覧の金額</span>` : ``}
             </div>
           </div>
-          <div class="pActions">
+          <div class="pActions" style="width: 100%;">
             ${p.pid ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(discVal))}" data-discount="${escapeHtml(p.pid)}">` : ``}
+            ${p.pid ? `<input class="smallInput campInput" type="text" placeholder="キャンペーン名" value="${escapeHtml(String(campVal))}" data-campaign="${escapeHtml(p.pid)}">` : ``}
             ${p.pid ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>` : ``}
             ${p.pid ? `<button class="btn" data-heart-open="${escapeHtml(p.pid)}" type="button">💖成立</button>` : ``}
             ${p.pid ? `<button class="btn danger" data-del-confirm="${escapeHtml(p.pid)}" type="button">予約に戻す</button>` : ``}
@@ -1391,7 +1554,6 @@ function openResModal(){
 function closeResModal(){
   $("resBack").style.display = "none";
 }
-// ✅ ここも bindTap に置換
 bindTap("btnOpenRes", openResModal);
 bindTap("btnCloseRes", closeResModal);
 
@@ -1423,7 +1585,8 @@ $("listF").addEventListener("click", (e)=>{
   if(btn.dataset.paidToggle) togglePaid(btn.dataset.paidToggle);
 });
 
-function bindDiscountInputDelegation(container){
+function bindInputDelegation(container){
+  // 割引入力の委譲
   container.addEventListener("input", (e)=>{
     const inp = e.target.closest("input[data-discount]");
     if(!inp) return;
@@ -1437,7 +1600,6 @@ function bindDiscountInputDelegation(container){
     debounceByKey("disc_"+pid, ()=>{
       const last = inp.dataset.lastSaved ?? "";
       if(v === last) return;
-
       inp.dataset.lastSaved = v;
       requestDiscountSave(pid, v);
     }, 400);
@@ -1451,17 +1613,51 @@ function bindDiscountInputDelegation(container){
       e.preventDefault();
       const pid = inp.dataset.discount;
       const v = String(inp.value ?? "");
-
       inp.dataset.lastSaved = v;
       setDraft(pid, v);
       requestDiscountSave(pid, v);
       inp.blur();
     }
   });
+
+  // キャンペーン入力の委譲
+  container.addEventListener("input", (e)=>{
+    const inp = e.target.closest("input[data-campaign]");
+    if(!inp) return;
+
+    const pid = inp.dataset.campaign;
+    const v = String(inp.value ?? "");
+
+    setCampaignDraft(pid, v);
+    updateCampaignDisplayOnly(pid, v);
+
+    debounceByKey("camp_"+pid, ()=>{
+      const last = inp.dataset.lastSaved ?? "";
+      if(v === last) return;
+      inp.dataset.lastSaved = v;
+      requestCampaignSave(pid, v);
+    }, 400);
+  });
+
+  container.addEventListener("keydown", (e)=>{
+    const inp = e.target.closest("input[data-campaign]");
+    if(!inp) return;
+
+    if(e.key === "Enter"){
+      e.preventDefault();
+      const pid = inp.dataset.campaign;
+      const v = String(inp.value ?? "");
+      inp.dataset.lastSaved = v;
+      setCampaignDraft(pid, v);
+      requestCampaignSave(pid, v);
+      inp.blur();
+    }
+  });
 }
-bindDiscountInputDelegation($("resBody"));
-bindDiscountInputDelegation($("listM"));
-bindDiscountInputDelegation($("listF"));
+bindInputDelegation($("resBody"));
+bindInputDelegation($("listM"));
+bindInputDelegation($("listF"));
+
 
 /* ===== 予約→確定 ===== */
 async function confirmParticipant(pid){
@@ -1499,7 +1695,10 @@ async function confirmParticipant(pid){
       status: "confirmed",
       coupleColor: p.coupleColor || "",
       discountYen: safeInt(p.discountYen || 0),
+      campaign: p.campaign || "",
       paid: !!p.paid,
+      receiptNo: p.receiptNo || "",
+      amountYen: p.amountProvided ? safeInt(p.amountYen) : "",
       updatedAt: nowIso()
     });
 
@@ -1566,7 +1765,6 @@ function setResTab(next){
   renderReservations();
 }
 
-// ✅ タブも bindTap に
 bindTap("tabAll", ()=>setResTab("all"));
 bindTap("tabM",   ()=>setResTab("M"));
 bindTap("tabF",   ()=>setResTab("F"));
@@ -1578,7 +1776,8 @@ function buildResCard(p){
 
   const base = getBasePriceFromEvent(g);
   const disc = safeInt(p.discountYen);
-  const fee  = Math.max(0, base - disc);
+  const fee  = getFinalFee(p);
+  const receiptNo = getReceiptNo(p);
 
   const gLabel = g==="M" ? "男性" : g==="F" ? "女性" : "未設定";
   const payBadge = p.paid
@@ -1590,13 +1789,18 @@ function buildResCard(p){
     `年齢:${p.age||"-"}`,
     `連絡先:${displayPhone(p.contact)||"-"}`,
     `連絡方法:${p.contactWay||"-"}`,
+    receiptNo ? `受付番号:${receiptNo}` : "",
     p.memo ? `メモ:${p.memo}` : ""
   ].filter(Boolean).join(" ｜ ");
 
   const discVal = getDraftDiscountValue(p.pid, safeInt(p.discountYen)||0);
+  const campVal = getDraftCampaignValue(p.pid, p.campaign || "");
 
   const discInput = p.pid
     ? `<input class="smallInput" inputmode="numeric" placeholder="割引(円)" value="${escapeHtml(String(discVal))}" data-discount="${escapeHtml(p.pid)}">`
+    : ``;
+  const campInput = p.pid
+    ? `<input class="smallInput campInput" type="text" placeholder="キャンペーン名" value="${escapeHtml(String(campVal))}" data-campaign="${escapeHtml(p.pid)}">`
     : ``;
   const paidBtn = p.pid
     ? `<button class="btn" data-paid-toggle="${escapeHtml(p.pid)}" type="button">${p.paid ? '✅支払済' : '💰未払い'}</button>`
@@ -1616,6 +1820,7 @@ function buildResCard(p){
       <div>
         <div class="rTitle">
           <span>${escapeHtml(p.name||"-")}</span>
+          ${receiptNo ? `<span class="badge ok">受付:${escapeHtml(receiptNo)}</span>` : ``}
           ${heart ? `<span title="カップル成立">${heart}</span>` : ``}
           ${payBadge}
         </div>
@@ -1624,12 +1829,14 @@ function buildResCard(p){
           <div class="priceRow">
             <span class="pill">基本 <strong>${fmtYen(base)}</strong></span>
             <span class="pill">割引 <strong>-${fmtYen(disc)}</strong></span>
-            <span class="pill">参加費 <strong>${fmtYen(fee)}</strong></span>
+            <span class="pill">金額 <strong>${fmtYen(fee)}</strong></span>
+            ${p.amountProvided ? `<span class="badge ok">確定一覧の金額</span>` : ``}
           </div>
         </div>
       </div>
       <div class="rActions">
         ${discInput}
+        ${campInput}
         ${paidBtn}
         ${heartBtn}
         ${confirmBtn}
@@ -1690,7 +1897,6 @@ function clearForm(){
   showAutoBadge(false);
 }
 
-// ✅ ボタン系も bindTap にして「押せない」を根絶
 bindTap("btnClear", ()=>{ setError(""); clearForm(); });
 
 bindTap("btnSave", async ()=>{
@@ -1718,7 +1924,10 @@ bindTap("btnSave", async ()=>{
       status: "reserved",
       coupleColor: "",
       discountYen: 0,
+      campaign: "",
       paid: false,
+      receiptNo: "",
+      amountYen: "",
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -1756,14 +1965,13 @@ bindTap("btnSave", async ()=>{
 
 $("q").oninput = renderConfirmed;
 
-/* ★イベント切替：参加確定者を「即表示」→ そのまま裏で最新同期 */
-$("eventSel").addEventListener("change", async ()=>{
+/* ★イベント切替：イベント変更時に即キャッシュ描画→バックグラウンドで同期 */
+$("eventSel").addEventListener("change", ()=>{
   setError("");
   const eventId = $("eventSel").value;
 
-  if(eventId) safeSet(LAST_EVENT_KEY, String(eventId));
-
   if(!eventId){
+    safeDel(LAST_EVENT_KEY);
     participantsRaw = [];
     participants = [];
     $("cntR").textContent = "0";
@@ -1772,27 +1980,10 @@ $("eventSel").addEventListener("change", async ()=>{
     return;
   }
 
-  const cached = getCache(eventId);
-  if(cached && Array.isArray(cached.raw)){
-    participantsRaw = cached.raw;
-    participants = cached.normalized || normalizeParticipants(cached.raw);
-    $("cntR").textContent = String(countReserved());
-    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
-    setEvStatus("キャッシュ表示→同期中…");
-  }else{
-    $("listM").innerHTML = `<div class="meta">読込中…</div>`;
-    $("listF").innerHTML = `<div class="meta">読込中…</div>`;
-    $("resBody").innerHTML = `<div class="meta">読込中…</div>`;
-    $("cntR").textContent = "0";
-    setEvStatus("読込中…");
-  }
-
-  try{
-    await reloadParticipants(eventId);
-    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
-  }catch(err){
+  safeSet(LAST_EVENT_KEY, String(eventId));
+  reloadParticipants(eventId).catch(err => {
     setError("参加者の読み込みに失敗： " + (err.message || err));
-  }
+  });
 });
 
 $("pName").addEventListener("input", ()=>{ scheduleAutoFill(); renderSuggest(); });
@@ -1823,21 +2014,30 @@ bindTap("btnCsvConfirmed", ()=>{
       const g = normalizeGender(p.gender);
       const base = getBasePriceFromEvent(g);
       const disc = safeInt(p.discountYen);
-      const fee  = Math.max(0, base-disc);
+      const fee  = getFinalFee(p);
+      const receiptNo = getReceiptNo(p);
+
       return [
+        receiptNo || "",
         p.name||"",
         g==="M"?"男性":g==="F"?"女性":"未設定",
         p.age||"",
         p.contact||"",
         p.contactWay||"",
+        base,
         disc,
         fee,
+        p.campaign||"",
+        p.amountProvided ? "確定一覧" : "計算",
         p.paid ? "済" : "未",
         p.memo||""
       ];
     });
 
-  const header = [["名前","性別","年齢","連絡先","連絡方法","割引(円)","参加費(円)","支払い","メモ"]];
+  const header = [[
+    "受付番号","名前","性別","年齢","連絡先","連絡方法",
+    "基本(円)","割引(円)","金額(円)","キャンペーン","金額ソース","支払い","メモ"
+  ]];
   const csv = toCsv([...header, ...rows]);
   downloadText(`確定_${eventTitle}.csv`, csv);
 });
@@ -1845,18 +2045,28 @@ bindTap("btnCsvConfirmed", ()=>{
 /* ===== 読み込み ===== */
 async function reloadParticipants(eventId){
   const seq = ++loadSeq;
-  setEvStatus("参加者読込中…");
 
+  // 1. 同期的にキャッシュがあれば即描画
   const cached = getCache(eventId);
   if(cached && Array.isArray(cached.raw)){
     participantsRaw = cached.raw;
     participants = cached.normalized || normalizeParticipants(cached.raw);
     $("cntR").textContent = String(countReserved());
     withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
-    setEvStatus("キャッシュ表示");
+    setEvStatus("キャッシュ表示（同期中…）");
+  } else {
+    // キャッシュがなければ初期化して読込中に
+    participantsRaw = [];
+    participants = [];
+    $("cntR").textContent = "0";
+    $("listM").innerHTML = `<div class="meta">データ読込中…</div>`;
+    $("listF").innerHTML = `<div class="meta">データ読込中…</div>`;
+    $("resBody").innerHTML = `<div class="meta">データ読込中…</div>`;
+    setEvStatus("参加者読込中…");
   }
 
   try{
+    // 2. 非同期で最新を取得
     const raw = await apiParticipantsList(eventId);
     if(seq !== loadSeq) return;
 
@@ -1866,20 +2076,19 @@ async function reloadParticipants(eventId){
 
     $("cntR").textContent = String(countReserved());
     withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
-    setEvStatus("OK");
+    setEvStatus("最新データ");
   }catch(err){
     if(!cached){
-      setEvStatus("-");
+      setEvStatus("エラー");
       throw err;
     }else{
-      setEvStatus("キャッシュ表示");
+      setEvStatus("キャッシュ表示（同期失敗）");
     }
   }
 }
 
 /* =========================================================
-   ✅ iOS Safari / iPhone 対策（最重要）
-   readonlyでオートフィル抑止 → 1タップ目で解除して強制フォーカス
+   ✅ iOS Safari / iPhone 対策
 ========================================================= */
 function hardDisableIOSAutofill(){
   const name = $("pName");
@@ -1909,68 +2118,68 @@ function hardDisableIOSAutofill(){
 }
 
 /* =========================================================
-   ★起動：イベントも参加者も即表示 → 裏で最新同期
+   ★起動：一切の待機(await)をなくし、即キャッシュ描画を行う
 ========================================================= */
-(async()=>{
+(function initializeApp(){
   try{
     initNewFold();
     hardDisableIOSAutofill();
 
-    setEvStatus("読込中…");
-    setStatus("読込中…");
-    setError("");
-
+    // 1. 同期的にイベント一覧をキャッシュから描画
     const evCached = getEventsCache();
     if(evCached && Array.isArray(evCached.events) && evCached.events.length){
       events = evCached.events;
       buildEventSelect(false);
-      setEvStatus("キャッシュ表示");
     }else{
       $("eventSel").innerHTML = `<option value="">読込中…</option>`;
     }
 
-    apiEvents().then(list=>{
-      if(Array.isArray(list)){
-        events = list;
-        setEventsCache(list);
-        const keep = true;
-        buildEventSelect(keep);
-        setEvStatus("OK");
-        const curId = $("eventSel").value;
-        if(curId){
-          safeSet(LAST_EVENT_KEY, String(curId));
-          reloadParticipants(curId).catch(()=>{});
-        }
-      }
-    }).catch(_=>{
-      if(!(evCached && evCached.events && evCached.events.length)){
-        setEvStatus("-");
-      }
-    });
-
-    apiCustomers().then(list=>{
-      customers = list || [];
-    });
-
+    // 2. 同期的に参加者をキャッシュから描画（await無し！）
     const firstId = $("eventSel").value || safeGet(LAST_EVENT_KEY) || "";
     if(firstId){
       const opt = [...$("eventSel").options].find(o=>String(o.value)===String(firstId));
       if(opt) $("eventSel").value = firstId;
       safeSet(LAST_EVENT_KEY, String($("eventSel").value || firstId));
-      await reloadParticipants($("eventSel").value || firstId);
-    }else{
-      participantsRaw = [];
-      participants = [];
-      $("cntR").textContent = "0";
-    }
 
+      const cachedParts = getCache(firstId);
+      if (cachedParts && Array.isArray(cachedParts.raw)) {
+        participantsRaw = cachedParts.raw;
+        participants = cachedParts.normalized || normalizeParticipants(cachedParts.raw);
+      }
+    }
+    
+    // 3. 画面の初期描画を即実行（ネットワーク待ちがゼロになります）
+    $("cntR").textContent = String(countReserved());
     $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
     setStatus("OK");
     withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
 
+    // 4. その後、裏側（非同期）で最新のイベント一覧と参加者一覧を取得
+    apiEvents().then(list=>{
+      if(Array.isArray(list)){
+        const beforeId = $("eventSel").value;
+        events = list;
+        setEventsCache(list);
+        buildEventSelect(true); // 選択状態を保持しつつ更新
+        
+        const afterId = $("eventSel").value;
+        // もしイベント一覧が読み込まれた結果、選択中のイベントが変わってしまったら再読込
+        if (afterId && afterId !== beforeId) {
+          safeSet(LAST_EVENT_KEY, String(afterId));
+          reloadParticipants(afterId).catch(()=>{});
+        }
+      }
+    }).catch(()=>{});
+
+    if(firstId){
+      reloadParticipants(firstId).catch(()=>{});
+    }
+
+    apiCustomers().then(list=>{
+      customers = list || [];
+    });
+
   }catch(err){
-    setEvStatus("-");
-    setStatus("-");
     setError("初期化に失敗： " + (err.message || err));
   }
 })();
