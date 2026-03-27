@@ -689,32 +689,35 @@ function renderEventDetail(e){
     };
     const msg = buildLinePrefillMessage(n, form);
 
-    btn.onclick = async (ev)=>{
+   btn.onclick = (ev) => {
       ev.preventDefault();
       saveErr.textContent = "";
-      try{
-        const eventId = document.getElementById("eventId")?.value || "";
-        if(eventId && form.tel){
-          const res = await apiReserveUpsert({
-            eventId,
-            eventTitle: n.title,
-            eventDate: n.date,
-            eventTime: (n.timeFrom||n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` : (n.time||""),
-            name: form.name,
-            gender: form.gender,
-            age: form.age,
-            tel: form.tel,
-            area: form.area,
-            status: "pending"
-          });
+
+      // ① サーバー通信を待たずに、押した瞬間にLINEを開く！
+      openLineReserve(msg);
+
+      // ② 裏でこっそりサーバーへデータを送信する
+      const eventId = document.getElementById("eventId")?.value || "";
+      if (eventId && form.tel) {
+        apiReserveUpsert({
+          eventId,
+          eventTitle: n.title,
+          eventDate: n.date,
+          eventTime: (n.timeFrom||n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` : (n.time||""),
+          name: form.name,
+          gender: form.gender,
+          age: form.age,
+          tel: form.tel,
+          area: form.area,
+          status: "pending"
+        }).then(res => {
           if(res && res.ok === false){
             saveErr.textContent = "（参考）サーバー保存に失敗： " + (res.error||"");
           }
-        }
-      }catch(e){
-        saveErr.textContent = "（参考）サーバー保存に失敗： " + (e.message||e);
+        }).catch(e => {
+          saveErr.textContent = "（参考）サーバー保存に失敗： " + (e.message||e);
+        });
       }
-      openLineReserve(msg);
     };
 
     const missing = [];
