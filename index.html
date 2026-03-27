@@ -20,11 +20,15 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
 }
 .wrap{max-width:980px;margin:0 auto;padding:18px 14px 40px}
-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:10px}
-.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pri2));box-shadow:var(--shadow)}
-h1{font-size:18px;margin:0}
-.sub{font-size:12px;color:var(--muted);margin-top:2px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;position:relative;}
+.brand{display:flex;align-items:center;gap:12px;min-width:240px;}
+.logo{
+  width:64px;height:64px;min-width:64px;min-height:64px;
+  border-radius:18px;background:#fff;border:1px solid var(--line);
+  box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+.logo img{width:100%;height:100%;object-fit:cover;display:block;}
+.brand h1{margin:0;font-size:20px;font-weight:700;line-height:1.25;}
 
 .btn{
   border:1px solid var(--line);background:#fff;
@@ -48,24 +52,20 @@ h1{font-size:18px;margin:0}
   margin-top:8px;
   display:grid;grid-template-columns:repeat(7,1fr);gap:10px;
 }
-
-/* ✅ カレンダー枠が崩れないように：dayをflex化し、子要素のはみ出しを抑制 */
 .day{
   border:1px solid var(--line);
   border-radius:14px;
   background:#fff;
   min-height:92px;
   padding:10px;
-
   display:flex;
   flex-direction:column;
-  overflow:hidden; /* 重要：中身で枠が崩れない */
+  overflow:hidden;
 }
 .day .num{font-weight:700;font-size:14px;flex:0 0 auto}
 .day.muted{opacity:.35}
 .day.today{outline:2px solid rgba(79,124,255,.25)}
 
-/* ✅ チップはタイトルのみ・省略表示・枠からはみ出さない */
 .chip{
   margin-top:6px;
   border:1px solid rgba(79,124,255,.25);
@@ -75,7 +75,6 @@ h1{font-size:18px;margin:0}
   padding:6px 8px;
   font-size:12px;
   cursor:pointer;
-
   display:block;
   max-width:100%;
   white-space:nowrap;
@@ -85,7 +84,6 @@ h1{font-size:18px;margin:0}
 @media(max-width:520px){
   .chip{font-size:11px; padding:6px 7px;}
 }
-
 .moreBtn{
   margin-top:4px;
   font-size:11px;
@@ -95,16 +93,12 @@ h1{font-size:18px;margin:0}
   flex:0 0 auto;
 }
 
-/* ===========================
-   ✅ modal（スマホで確実にスクロールできる最適化）
-=========================== */
 .modalBack{
   position:fixed; inset:0;
   background:rgba(15,23,42,.35);
   display:none;
   padding:12px;
   z-index:50;
-
   align-items:flex-start;
   justify-content:center;
   overflow:auto;
@@ -135,7 +129,6 @@ h1{font-size:18px;margin:0}
   overscroll-behavior:contain;
 }
 
-/* event detail */
 .evCard{
   border:1px solid var(--line);
   border-radius:14px;
@@ -146,7 +139,6 @@ h1{font-size:18px;margin:0}
 .evMeta{font-size:12px;color:var(--muted);margin-top:4px}
 .evRow{font-size:13px;margin-top:6px}
 
-/* ✅ 詳細 2カラム（右を広めに） */
 .evLayout{
   margin-top:10px;
   display:grid;
@@ -189,7 +181,6 @@ h1{font-size:18px;margin:0}
   word-break:break-word;
 }
 
-/* LINE予約フォーム */
 .lineReserveBox{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px;}
 .reserveForm{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#fafbff;}
 .reserveForm .ttl{font-weight:800;margin:0 0 8px 0;font-size:13px}
@@ -201,7 +192,8 @@ h1{font-size:18px;margin:0}
 .smallNote{font-size:11px;color:var(--muted);margin-top:6px}
 .formBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .formBtns .btnLike{
-  flex:1; min-width:220px;
+  flex:1;
+  min-width:220px;
   display:flex;align-items:center;justify-content:center;gap:10px;
   padding:12px 14px;border-radius:999px;
   border:1px solid rgba(0,0,0,.08);
@@ -214,54 +206,8 @@ h1{font-size:18px;margin:0}
 .formBtns .btnLike.secondary{box-shadow:none;background:#fff;border:1px solid var(--line);}
 .warnText{font-size:12px;color:#b45309;margin-top:6px}
 
-/* 画像保存中 */
 .saving{opacity:.65;pointer-events:none;filter:grayscale(.15);}
 
-/* ===== ロゴ＋タイトル 横並び調整（最終版） ===== */
-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:12px;
-  flex-wrap:wrap;
-position:relative;
-}
-.brand{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  min-width:240px;
-}
-.logo{
-  width:64px;
-  height:64px;
-  min-width:64px;
-  min-height:64px;
-  border-radius:18px;
-  background:#fff;
-  border:1px solid var(--line);
-  box-shadow:var(--shadow);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  overflow:hidden;
-}
-.logo img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
-.brand h1{
-  margin:0;
-  font-size:20px;
-  font-weight:700;
-  line-height:1.25;
-}
-
-/* ===========================
-   ✅ キャンセルポリシー（ページ下に常時表示）
-=========================== */
 .policyWrap{margin-top:12px}
 .policyBox{
   border:1px solid var(--line);
@@ -288,47 +234,33 @@ position:relative;
   word-break:break-word;
 }
 
-/* ===== キャンペーン告知ボタン（横並びで目立つ） ===== */
 .campaignBtn{
   display:inline-flex;
   align-items:center;
   gap:8px;
-
   padding:10px 14px;
   border-radius:999px;
   font-size:12px;
   font-weight:900;
-
   background:linear-gradient(135deg,#ef4444,#f59e0b);
   color:#fff;
   text-decoration:none;
   border:none;
-
   box-shadow:0 10px 26px rgba(239,68,68,.35);
   white-space:nowrap;
 }
-.campaignBtn:hover{ transform:translateY(-1px) scale(1.02); }
 .campaignBtn:hover{
   transform:translateY(-2px) scale(1.03);
   box-shadow:
     0 12px 34px rgba(239,68,68,.65),
     0 0 0 6px rgba(239,68,68,.18);
 }
-
-/* ふわっと鼓動する */
 @keyframes pulseCampaign{
   0%   { box-shadow:0 8px 24px rgba(239,68,68,.55), 0 0 0 0 rgba(239,68,68,.35); }
   70%  { box-shadow:0 12px 30px rgba(239,68,68,.65), 0 0 0 12px rgba(239,68,68,0); }
   100% { box-shadow:0 8px 24px rgba(239,68,68,.55), 0 0 0 0 rgba(239,68,68,0); }
 }
-.campaignBtn:hover{
-  transform:translateY(-2px);
-  box-shadow:0 14px 34px rgba(249,115,22,.55);
-}
-
 </style>
-
-
 </head>
 
 <body>
@@ -342,12 +274,10 @@ position:relative;
       <h1>イベントカレンダー</h1>
     </div>
   </div>
-
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
   <button class="btn" id="btnReload">更新</button>
   <a class="campaignBtn" href="./campaigns.html">📣 キャンペーンを見る</a>
 </div>
-
 </header>
 
 <section class="card" id="scheduleCard" style="margin-top:12px">
@@ -366,16 +296,13 @@ position:relative;
   </div>
 </section>
 
-<!-- ✅ ページ下：常時表示の共通キャンセルポリシー -->
 <section class="policyWrap">
   <div class="policyBox">
     <p class="policyLead"><b>キャンセルポリシー</b>（ご予約前にご確認ください）</p>
-    <img class="policyImg" id="policyImg" src="./cancel_policy.png" alt="キャンセルポリシー画像"
-         onerror="this.style.display='none'">
+    <img class="policyImg" id="policyImg" src="./cancel_policy.png" alt="キャンセルポリシー画像" onerror="this.style.display='none'">
     <div class="policyText" id="policyText"></div>
   </div>
 </section>
-
 </div>
 
 <div class="modalBack" id="modalBack">
@@ -392,14 +319,10 @@ position:relative;
 </div>
 
 <script>
-/* ===========================
-   設定
-=========================== */
 const API_URL="https://script.google.com/macros/s/AKfycbyQkxsI-5zHH4f5BcFz_bkvDEdPwWF3stmmALEEYga8x0VrJBzcF8Fr61UjITWm0BK7/exec";
 const LINE_ADD_URL="https://lin.ee/oP0e2Kf";
 const LINE_TO = "@820theos";
 
-/* ✅ ページ下の共通ポリシー（自由に変更OK） */
 const CANCEL_POLICY_TEXT = `【キャンセルポリシー】
 ・キャンセルのご連絡はできるだけお早めにお願いいたします。
 ・キャンセル料の有無／期限はイベント内容により異なる場合があります。
@@ -407,15 +330,13 @@ const CANCEL_POLICY_TEXT = `【キャンセルポリシー】
 ※詳細は主催者からの案内を優先します。`;
 
 const $=id=>document.getElementById(id);
-
 let events=[];
 let view=new Date();
 let byDay={};
 let byId={};
 let lastListDay=null;
-
-/* ✅ iOS対策：モーダル表示中に背景スクロールを完全に止める（inner scrollは生かす） */
 let __lockY = 0;
+
 function lockBody(){
   __lockY = window.scrollY || 0;
   document.body.style.position = "fixed";
@@ -433,9 +354,6 @@ function unlockBody(){
   window.scrollTo(0, __lockY);
 }
 
-/* ===========================
-   共通
-=========================== */
 function pad(n){return String(n).padStart(2,"0")}
 
 function openModal(){
@@ -455,8 +373,6 @@ function preventBackScroll(e){
 }
 
 $("btnCloseModal").onclick = closeModal;
-
-// 背景クリックで閉じる
 $("modalBack").addEventListener("click",(e)=>{
   if(e.target === $("modalBack")) closeModal();
 });
@@ -498,7 +414,6 @@ function cleanDeadline(v){
   return s;
 }
 
-/* ✅ サーバー通信用（予約の紐付け） */
 async function postApi(body){
   const r = await fetch(API_URL, {
     method:"POST",
@@ -527,23 +442,13 @@ function normalizeEvent(e){
   const age    = e.age ?? "";
   const note   = e.note ?? "";
   const summary = e.summary ?? e.overview ?? e.memo ?? "";
-
   const target = e.target ?? "";
   const deadline = e.deadline ?? "";
   const id = (e.id!=null)? String(e.id) : "";
-
-  /* ✅ 追加：admin側で入力した「キャンセルについて」を反映
-     - GAS/スプレッドシート側の列名に合わせて、ここを増やせます
-     - 例：cancelPolicy / cancel / cancelText / cancelNote など
-  */
   const cancel = e.cancelPolicy ?? e.cancel ?? e.cancelText ?? e.cancelNote ?? e.cancelAbout ?? "";
-
   return {id,title,date,time,timeFrom,timeTo,place,priceM,priceF,slots,pay,payMethod,age,note,summary,target,deadline,cancel};
 }
 
-/* ===========================
-   データ取得
-=========================== */
 async function loadEvents(){
   $("err").textContent="";
   $("status").textContent="読み込み中…";
@@ -554,7 +459,6 @@ async function loadEvents(){
 
   byDay={};
   byId={};
-
   for(const e of events){
     const n = normalizeEvent(e);
     if(n.id) byId[n.id] = e;
@@ -573,13 +477,9 @@ async function loadEvents(){
       return String(na).localeCompare(String(nb));
     });
   });
-
   $("status").textContent="OK";
 }
 
-/* ===========================
-   画像保存
-=========================== */
 async function saveScheduleAsPng(){
   const target = $("scheduleCard");
   if(!target) return;
@@ -588,14 +488,12 @@ async function saveScheduleAsPng(){
   const prevText = btn?.textContent || "";
   if(btn) btn.textContent = "作成中…";
   target.classList.add("saving");
-
   try{
     const canvas = await html2canvas(target, {
       scale: Math.min(2, window.devicePixelRatio || 1),
       useCORS: true,
       backgroundColor: null
     });
-
     const y=view.getFullYear(), m=view.getMonth()+1;
     const filename = `event-calendar_${y}-${String(m).padStart(2,"0")}.png`;
 
@@ -622,10 +520,6 @@ async function saveScheduleAsPng(){
   }
 }
 
-
-/* ===========================
-   LINE 起動
-=========================== */
 function isMobileLineCapable(){
   const ua = navigator.userAgent || "";
   return /iPhone|iPad|iPod|Android/i.test(ua);
@@ -645,6 +539,7 @@ function buildLinePrefillMessage(n, form){
     "",
     "【お客様情報】",
     `お名前：${form.name || ""}`,
+    `性別：${form.gender || ""}`,
     `年齢：${form.age || ""}`,
     `電話番号：${form.tel || ""}`,
     `お住まい：${form.area || ""}`
@@ -666,10 +561,6 @@ function openLineReserve(message){
   }
 }
 
-/* ===========================
-   詳細モーダル
-   ✅ 詳細欄に「キャンセルについて」を追加（admin入力を反映）
-=========================== */
 function renderEventDetail(e){
   const n = normalizeEvent(e);
 
@@ -681,7 +572,6 @@ function renderEventDetail(e){
   const priceStr = (n.priceM || n.priceF) ? `男性：${n.priceM||"-"} / 女性：${n.priceF||"-"}` : "";
   const slotsStr = (n.slots!=="" && n.slots!=null) ? String(n.slots) : "";
   const ageStr   = (n.age!=="" && n.age!=null) ? String(n.age) : "";
-
   const payStr   = cleanPay(n.payMethod || n.pay);
   const deadlineStr = cleanDeadline(n.deadline);
   const targetStr = String(n.target||"").trim();
@@ -706,55 +596,47 @@ function renderEventDetail(e){
           ${priceStr ? `<div class="evRow">料金：${escapeHtml(priceStr)}</div>` : ``}
           ${slotsStr ? `<div class="evRow">募集：${escapeHtml(slotsStr)}名</div>` : ``}
           ${ageStr ? `<div class="evRow">対象年齢：${escapeHtml(ageStr)}</div>` : ``}
-
           ${targetStr ? `<div class="evRow">対象：${escapeHtml(targetStr)}</div>` : ``}
           ${deadlineStr ? `<div class="evRow">〆切：${escapeHtml(deadlineStr)}</div>` : ``}
           ${payStr ? `<div class="evRow">支払方法：${escapeHtml(payStr)}</div>` : ``}
-
           ${noteStr ? `<div class="evRow">種類：${escapeHtml(noteStr)}</div>` : ``}
         </div>
 
-        ${
-          hasRight
-            ? `
-              <div class="evRight">
-                ${
-                  hasSummary
-                    ? `
-                      <div class="summaryBox">
-                        <p class="summaryTtl">概要</p>
-                        <div class="summaryText">${escapeHtml(summaryStr)}</div>
-                      </div>
-                    `
-                    : ``
-                }
-
-                ${
-                  hasCancel
-                    ? `
-                      <div class="summaryBox">
-                        <p class="summaryTtl">キャンセルについて</p>
-                        <div class="summaryText">${escapeHtml(cancelStr)}</div>
-                      </div>
-                    `
-                    : ``
-                }
-              </div>
-            `
-            : ``
-        }
+        ${hasRight ? `
+          <div class="evRight">
+            ${hasSummary ? `
+              <div class="summaryBox">
+                <p class="summaryTtl">概要</p>
+                <div class="summaryText">${escapeHtml(summaryStr)}</div>
+              </div>` : ``}
+            ${hasCancel ? `
+              <div class="summaryBox">
+                <p class="summaryTtl">キャンセルについて</p>
+                <div class="summaryText">${escapeHtml(cancelStr)}</div>
+              </div>` : ``}
+          </div>` : ``}
       </div>
 
       <div class="lineReserveBox">
         <div class="reserveForm" id="reserveFormBox">
           <p class="ttl">LINE予約（入力してから送信）</p>
-
           <input type="hidden" id="eventId" value="${escapeHtml(n.id)}">
 
           <div class="fgrid">
             <div class="fi">
               <label>お名前</label>
               <input id="rfName" type="text" placeholder="例：山田 花子">
+            </div>
+            <div class="fi">
+              <label>性別</label>
+              <div style="display:flex; gap:12px; margin-top:6px;">
+                <label style="display:flex; align-items:center; gap:4px; font-size:14px; cursor:pointer;">
+                  <input type="radio" name="rfGender" value="男性" checked> 男性
+                </label>
+                <label style="display:flex; align-items:center; gap:4px; font-size:14px; cursor:pointer;">
+                  <input type="radio" name="rfGender" value="女性"> 女性
+                </label>
+              </div>
             </div>
             <div class="fi">
               <label>年齢</label>
@@ -797,8 +679,10 @@ function renderEventDetail(e){
   const saveErr = document.getElementById("rfSaveErr");
 
   function updateActions(){
+    const genderEl = document.querySelector('input[name="rfGender"]:checked');
     const form = {
       name: (document.getElementById("rfName")?.value || "").trim(),
+      gender: genderEl ? genderEl.value : "",
       age:  (document.getElementById("rfAge")?.value || "").trim(),
       tel:  (document.getElementById("rfTel")?.value || "").trim(),
       area: (document.getElementById("rfArea")?.value || "").trim(),
@@ -807,7 +691,6 @@ function renderEventDetail(e){
 
     btn.onclick = async (ev)=>{
       ev.preventDefault();
-
       saveErr.textContent = "";
       try{
         const eventId = document.getElementById("eventId")?.value || "";
@@ -818,6 +701,7 @@ function renderEventDetail(e){
             eventDate: n.date,
             eventTime: (n.timeFrom||n.timeTo) ? `${n.timeFrom||""}〜${n.timeTo||""}` : (n.time||""),
             name: form.name,
+            gender: form.gender,
             age: form.age,
             tel: form.tel,
             area: form.area,
@@ -830,7 +714,6 @@ function renderEventDetail(e){
       }catch(e){
         saveErr.textContent = "（参考）サーバー保存に失敗： " + (e.message||e);
       }
-
       openLineReserve(msg);
     };
 
@@ -853,6 +736,11 @@ function renderEventDetail(e){
     const el = document.getElementById(id);
     if(el) el.addEventListener("input", updateActions);
   });
+  
+  document.querySelectorAll('input[name="rfGender"]').forEach(el => {
+    el.addEventListener("change", updateActions);
+  });
+
   updateActions();
 
   if(lastListDay){
@@ -916,18 +804,13 @@ function openDayList(day){
       openEventById(eid);
     };
   });
-
   openModal();
 }
 $("btnBackList").onclick = ()=>{ if(lastListDay) openDayList(lastListDay); };
 
-/* ===========================
-   カレンダー描画
-=========================== */
 function render(){
   const y=view.getFullYear(), m=view.getMonth();
   $("monthTitle").textContent=`${y}年${m+1}月`;
-
   const first=new Date(y,m,1), last=new Date(y,m+1,0);
   const todayStr = `${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`;
 
@@ -941,7 +824,7 @@ function render(){
     let chips="";
     evs.slice(0,2).forEach(e=>{
       const n = normalizeEvent(e);
-      const label = n.title; // タイトルのみ
+      const label = n.title;
       chips += `<div class="chip" data-eid="${escapeHtml(n.id)}" title="${escapeHtml(n.title)}">${escapeHtml(label)}</div>`;
     });
     if(evs.length>2){
@@ -962,21 +845,14 @@ function render(){
   });
 }
 
-/* ===========================
-   操作
-=========================== */
 $("prev").onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()-1,1);render()}
 $("next").onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);render()}
 $("btnReload").onclick=async()=>{await loadEvents();render()}
 
-/* ===========================
-   起動
-=========================== */
 (function initPolicy(){
   const el = document.getElementById("policyText");
   if(el) el.textContent = CANCEL_POLICY_TEXT;
 })();
-
 (async()=>{
   await loadEvents();
   render();
