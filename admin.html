@@ -914,32 +914,29 @@ $("q").oninput = () => {
 };
 
 /* ===== 保存/削除（保存後に必ず list 再取得） ===== */
-const CACHE_KEY = "events_local_cache_v2"; // ブラウザ記憶用のカギ
+const CACHE_KEY = "events_local_cache_v3";
 
 async function refreshList(isBackground = false){
-  if(!isBackground) $("loadedAt").textContent = "通信中...";
-
   try {
     const freshEvents = await apiList();
     freshEvents.sort(sortBySoonest);
 
-    // ★新しいデータと、今表示しているデータが「同じ」なら何もしない（画面のチラつき防止）
     const oldDataStr = JSON.stringify(events);
     const newDataStr = JSON.stringify(freshEvents);
 
+    // ★データが本当に変わっていた時だけ、しれっと画面を更新する
     if (oldDataStr !== newDataStr) {
-      // データが変わっていたら画面を最新に更新
       events = freshEvents;
-      try { localStorage.setItem(CACHE_KEY, newDataStr); } catch(e){} // 記憶を最新に上書き
-      
-      $("loadedAt").textContent = "最新データに更新：" + new Date().toLocaleString("ja-JP");
+      try { localStorage.setItem(CACHE_KEY, newDataStr); } catch(e){}
       render();
-    } else {
-      // 変わっていなければ文字だけ変える
-      if(isBackground) $("loadedAt").textContent = "最新確認済：" + new Date().toLocaleString("ja-JP");
     }
+    
+    // こっそり「最終同期時間」だけ更新（通信中などの文字は一切出さない）
+    const time = new Date().toLocaleTimeString("ja-JP", {hour: '2-digit', minute:'2-digit'});
+    $("loadedAt").textContent = `自動同期済 (${time})`;
+
   } catch(err) {
-    if(!isBackground) setError("読み込みに失敗： " + (err.message || err));
+    if(!isBackground) setError("通信エラー： " + (err.message || err));
   }
 }
 
@@ -951,7 +948,9 @@ $("btnSave").onclick = async ()=>{
     if(!title){ alert("タイトルは必須です"); return; }
     if(!date){ alert("日付は必須です"); return; }
 
-    setStatus("保存中…");
+    // ボタンの文字を変えて押した反応だけ見せる
+    $("btnSave").textContent = "保存中...";
+    $("btnSave").disabled = true;
 
     const tFrom = normalizeTimeField("timeFrom");
     const tTo   = normalizeTimeField("timeTo");
@@ -959,19 +958,12 @@ $("btnSave").onclick = async ()=>{
 
     const ev = {
       id: $("eid").value.trim(),
-      title,
-      date,
-      timeFrom: tFrom,
-      timeTo: tTo,
-      time: timeSingle,
-
+      title, date, timeFrom: tFrom, timeTo: tTo, time: timeSingle,
       place: $("place").value.trim(),
       priceM: $("priceM").value.trim(),
       priceF: $("priceF").value.trim(),
       note: $("note").value.trim(),
-
       summary: $("summary").value.trim(),
-
       deadline: $("deadline").value || "",
       target: $("target").value.trim(),
       payMethod: $("payMethod").value.trim(),
@@ -979,13 +971,14 @@ $("btnSave").onclick = async ()=>{
     };
 
     await apiUpsert(ev);
-    await refreshList(); // ここで最新化と保存が行われる
+    await refreshList(); // 裏で最新化
 
-    setStatus("保存しました");
     closeModal();
   }catch(err){
-    setStatus("-");
     setError("保存に失敗： " + (err.message || err));
+  }finally{
+    $("btnSave").textContent = "保存";
+    $("btnSave").disabled = false;
   }
 };
 
@@ -996,15 +989,18 @@ $("btnDelete").onclick = async ()=>{
   if(!confirm("削除しますか？")) return;
 
   try{
-    setStatus("削除中…");
+    $("btnDelete").textContent = "削除中...";
+    $("btnDelete").disabled = true;
+    
     await apiDelete(id);
     await refreshList();
 
-    setStatus("削除しました");
     closeModal();
   }catch(err){
-    setStatus("-");
     setError("削除に失敗： " + (err.message || err));
+  }finally{
+    $("btnDelete").textContent = "削除";
+    $("btnDelete").disabled = false;
   }
 };
 
@@ -1014,37 +1010,33 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
-/* ===== 起動（超速・一瞬表示バージョン） ===== */
+/* ===== 起動（無音・完全ステルスロード） ===== */
 (async()=>{
   try {
     setError("");
-    
-    // 1. まずブラウザの記憶（キャッシュ）があれば、一瞬で画面を作る
     const cached = localStorage.getItem(CACHE_KEY);
+    
     if (cached) {
+      // 記憶があれば一瞬で画面を描画して、ロード中アピールを一切しない
       events = JSON.parse(cached);
-      $("loadedAt").textContent = "前回データ表示中...(裏で最新を確認中)";
-      render(); // ★ここで一瞬で表示される！
+      render(); 
     } else {
-      // 記憶がない初回だけローディング画面を出す
-      $("list").innerHTML = `
-        <div style="padding:40px 20px; text-align:center;">
-          <div style="font-weight:bold; color:var(--pri); font-size:15px;">📡 データを取得しています...</div>
-          <div style="margin-top:8px; font-size:12px; color:var(--muted);">※初回は数秒かかる場合があります</div>
-        </div>`;
+      // 記憶がない初めて開く時だけメッセージを出す
+      $("list").innerHTML = `<div style="padding:40px; text-align:center; color:var(--muted)">データを同期しています...</div>`;
     }
 
-    // 2. 画面が表示された後、裏側で最新データをGASへ取りに行く（0.1秒ずらしてフリーズ防止）
+    // 裏側で完全に無音で通信を開始（画面はフリーズしない）
     setTimeout(() => {
       refreshList(true).catch(err => {
-         if(!cached) setError("エラー詳細： " + (err.message || err));
+         if(!cached) setError("通信エラー： " + (err.message || err));
       });
-    }, 100);
+    }, 50);
 
   } catch(err) {
-    setError("エラー詳細： " + (err.message || err));
+    setError("起動エラー： " + (err.message || err));
   }
 })();
 </script>
+
 </body>
 </html>
