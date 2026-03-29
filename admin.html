@@ -275,7 +275,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
     <button class="btn" id="btnReload" type="button">更新</button>
     <button class="btn primary" id="btnNew" type="button">新規登録</button>
 
-    <!-- ★バックアップ/復元 -->
     <button class="btn" id="btnBackup" type="button">バックアップ</button>
     <button class="btn danger" id="btnRestore" type="button">復元</button>
   </div>
@@ -299,7 +298,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
   </div>
 </section>
 
-<!-- ===== モーダル（新規/編集） ===== -->
 <div class="modalBack" id="modalBack" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true">
     <div class="modalHd">
@@ -383,7 +381,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
   </div>
 </div>
 
-<!-- ===== 復元モーダル ===== -->
 <div class="modalBack" id="restoreBack" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true">
     <div class="modalHd">
@@ -600,14 +597,11 @@ function openModal(mode, ev){
     $("priceM").value="";
     $("priceF").value="";
     $("note").value="";
-
     $("summary").value="";
-
     $("deadline").value="";
     $("target").value="";
     $("payMethod").value="";
     $("cancelPolicy").value="";
-
     $("btnDelete").style.display="none";
   }else{
     $("modalTitle").textContent="編集";
@@ -624,9 +618,7 @@ function openModal(mode, ev){
     $("priceM").value=ev.priceM||"";
     $("priceF").value=ev.priceF||"";
     $("note").value=ev.note||"";
-
     $("summary").value = ev.summary || ev.memo || "";
-
     $("deadline").value = toDateValue(ev.deadline);
     $("target").value = ev.target || "";
     $("payMethod").value = ev.payMethod || ev.pay || "";
@@ -746,9 +738,8 @@ function fmtDateJa(v){
 }
 function fmtMoney(v){ return (v===0 || v==="0" || v) ? String(v) : "-"; }
 
-/* ✅ 直近イベントを自動で開くか（任意） */
 const AUTO_OPEN_SOON_EVENTS = true;
-const AUTO_OPEN_SOON_DAYS = 7; // 例：7日以内は開く
+const AUTO_OPEN_SOON_DAYS = 7; 
 
 function isSoonEvent(ev){
   const d = toDateSafe(ev.date, ev.timeFrom || ev.time || "");
@@ -761,10 +752,7 @@ function isSoonEvent(ev){
 function render(){
   const q = $("q").value.trim();
 
-  // ✅ 開催日が近い順に自動ソート
   const sorted = [...events].sort(sortBySoonest);
-
-  // ✅ 現行一覧は「中止」は除外（＝過去イベント側へ）
   const currentOnly = sorted.filter(e => !isCanceled(e));
 
   const list = q
@@ -774,14 +762,17 @@ function render(){
       })
     : currentOnly;
 
-  $("count").textContent = `表示 ${list.length}件 / 全${events.length}件`;
+  const displayLimit = 50; 
+  const displayList = list.slice(0, displayLimit);
 
-  if(!list.length){
-    $("list").innerHTML = `<div class="meta">イベントがありません</div>`;
+  $("count").textContent = `表示 ${displayList.length}件 / 検索ヒット ${list.length}件 / 全${events.length}件`;
+
+  if(!displayList.length){
+    $("list").innerHTML = `<div class="meta" style="padding:20px; text-align:center;">イベントがありません</div>`;
     return;
   }
 
-  $("list").innerHTML = list.map(e=>{
+  let html = displayList.map(e=>{
     const payTxt = e.payMethod || e.pay || "";
     const targetTxt = e.target || "";
     const cancelTxt = e.cancelPolicy || "";
@@ -856,6 +847,12 @@ function render(){
     `;
   }).join("");
 
+  if (list.length > displayLimit) {
+    html += `<div class="meta" style="text-align:center; padding:16px 0;">他 ${list.length - displayLimit} 件のイベントがあります。上の検索バーから絞り込んでください。</div>`;
+  }
+
+  $("list").innerHTML = html;
+
   document.querySelectorAll("[data-edit]").forEach(b=>{
     b.onclick = ()=>{
       const ev = events.find(x=>String(x.id)===String(b.dataset.edit));
@@ -886,48 +883,64 @@ function render(){
     };
   });
 
-  // ✅ 中止ボタン
   document.querySelectorAll("[data-cancel]").forEach(b=>{
-  b.onclick = async ()=>{
-    const ev = events.find(x=>String(x.id)===String(b.dataset.cancel));
-    if(!ev) return;
+    b.onclick = async ()=>{
+      const ev = events.find(x=>String(x.id)===String(b.dataset.cancel));
+      if(!ev) return;
 
-    if(!confirm(
-      "このイベントを中止します。\n" +
-      "中止すると通常一覧から消え、過去イベントに移動します。\n\n" +
-      "実行しますか？"
-    )) return;
+      if(!confirm(
+        "このイベントを中止します。\n" +
+        "中止すると通常一覧から消え、過去イベントに移動します。\n\n" +
+        "実行しますか？"
+      )) return;
 
-    try{
-      setError("");
-
-      await apiUpsert({
-  ...ev,
-  status: "canceled"
-});
-
-      await refreshList(); // ★必ず再取得
-      alert("イベントを中止しました");
-
-    }catch(err){
-      setError("中止に失敗：" + (err.message || err));
-    }
-  };
-});
+      try{
+        setError("");
+        await apiUpsert({ ...ev, status: "canceled" });
+        await refreshList(); 
+        alert("イベントを中止しました");
+      }catch(err){
+        setError("中止に失敗：" + (err.message || err));
+      }
+    };
+  });
 
 }
 
-$("q").oninput = render;
+let searchTimeout = null;
+$("q").oninput = () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(render, 300); 
+};
 
 /* ===== 保存/削除（保存後に必ず list 再取得） ===== */
-async function refreshList(){
-  events = await apiList();
+const CACHE_KEY = "events_local_cache_v2"; // ブラウザ記憶用のカギ
 
-  // ✅ 常に近い順で保持
-  events.sort(sortBySoonest);
+async function refreshList(isBackground = false){
+  if(!isBackground) $("loadedAt").textContent = "通信中...";
 
-  $("loadedAt").textContent = "読み込み：" + new Date().toLocaleString("ja-JP");
-  render();
+  try {
+    const freshEvents = await apiList();
+    freshEvents.sort(sortBySoonest);
+
+    // ★新しいデータと、今表示しているデータが「同じ」なら何もしない（画面のチラつき防止）
+    const oldDataStr = JSON.stringify(events);
+    const newDataStr = JSON.stringify(freshEvents);
+
+    if (oldDataStr !== newDataStr) {
+      // データが変わっていたら画面を最新に更新
+      events = freshEvents;
+      try { localStorage.setItem(CACHE_KEY, newDataStr); } catch(e){} // 記憶を最新に上書き
+      
+      $("loadedAt").textContent = "最新データに更新：" + new Date().toLocaleString("ja-JP");
+      render();
+    } else {
+      // 変わっていなければ文字だけ変える
+      if(isBackground) $("loadedAt").textContent = "最新確認済：" + new Date().toLocaleString("ja-JP");
+    }
+  } catch(err) {
+    if(!isBackground) setError("読み込みに失敗： " + (err.message || err));
+  }
 }
 
 $("btnSave").onclick = async ()=>{
@@ -966,7 +979,7 @@ $("btnSave").onclick = async ()=>{
     };
 
     await apiUpsert(ev);
-    await refreshList();
+    await refreshList(); // ここで最新化と保存が行われる
 
     setStatus("保存しました");
     closeModal();
@@ -1001,16 +1014,37 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
-/* ===== 起動 ===== */
+/* ===== 起動（超速・一瞬表示バージョン） ===== */
 (async()=>{
-  try{
+  try {
     setError("");
-    await refreshList();
-  }catch(err){
-    setError("読み込みに失敗： " + (err.message || err));
+    
+    // 1. まずブラウザの記憶（キャッシュ）があれば、一瞬で画面を作る
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      events = JSON.parse(cached);
+      $("loadedAt").textContent = "前回データ表示中...(裏で最新を確認中)";
+      render(); // ★ここで一瞬で表示される！
+    } else {
+      // 記憶がない初回だけローディング画面を出す
+      $("list").innerHTML = `
+        <div style="padding:40px 20px; text-align:center;">
+          <div style="font-weight:bold; color:var(--pri); font-size:15px;">📡 データを取得しています...</div>
+          <div style="margin-top:8px; font-size:12px; color:var(--muted);">※初回は数秒かかる場合があります</div>
+        </div>`;
+    }
+
+    // 2. 画面が表示された後、裏側で最新データをGASへ取りに行く（0.1秒ずらしてフリーズ防止）
+    setTimeout(() => {
+      refreshList(true).catch(err => {
+         if(!cached) setError("エラー詳細： " + (err.message || err));
+      });
+    }, 100);
+
+  } catch(err) {
+    setError("エラー詳細： " + (err.message || err));
   }
 })();
 </script>
-
 </body>
 </html>
