@@ -940,6 +940,7 @@ async function refreshList(isBackground = false){
   }
 }
 
+/* ===== 保存/削除（0秒で画面に反映して裏で通信する） ===== */
 $("btnSave").onclick = async ()=>{
   setError("");
   try{
@@ -948,16 +949,16 @@ $("btnSave").onclick = async ()=>{
     if(!title){ alert("タイトルは必須です"); return; }
     if(!date){ alert("日付は必須です"); return; }
 
-    // ボタンの文字を変えて押した反応だけ見せる
-    $("btnSave").textContent = "保存中...";
-    $("btnSave").disabled = true;
-
     const tFrom = normalizeTimeField("timeFrom");
     const tTo   = normalizeTimeField("timeTo");
     const timeSingle = (tFrom && tTo) ? `${tFrom}〜${tTo}` : (tFrom || "");
 
+    // 新規か編集か判定（IDが空なら新規用の仮IDを付ける）
+    const isNew = !$("eid").value.trim();
+    const evId = isNew ? "temp_" + Date.now() : $("eid").value.trim();
+
     const ev = {
-      id: $("eid").value.trim(),
+      id: evId,
       title, date, timeFrom: tFrom, timeTo: tTo, time: timeSingle,
       place: $("place").value.trim(),
       priceM: $("priceM").value.trim(),
@@ -970,15 +971,33 @@ $("btnSave").onclick = async ()=>{
       cancelPolicy: $("cancelPolicy").value.trim()
     };
 
-    await apiUpsert(ev);
-    await refreshList(); // 裏で最新化
-
+    // 【爆速化の魔法】待たずにブラウザの記憶（events配列）を即座に書き換える！
+    if (isNew) {
+      events.push(ev);
+    } else {
+      const idx = events.findIndex(e => String(e.id) === String(evId));
+      if (idx >= 0) events[idx] = ev;
+    }
+    
+    // 画面を一瞬で更新して、モーダルを閉じる
+    events.sort(sortBySoonest);
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(events)); } catch(e){}
+    render();
     closeModal();
+    
+    // メッセージだけこっそり変えておく
+    $("loadedAt").textContent = "裏側でスプレッドシートに保存中...";
+
+    // 【裏側でこっそりGASに送信】
+    apiUpsert(ev).then(() => {
+      // 保存が終わったら、念のため最終的な最新データを取ってくる（無音同期）
+      refreshList(true);
+    }).catch(err => {
+      alert("⚠️ 裏側での保存に失敗しました。電波状況を確認してください。\n" + (err.message || err));
+    });
+
   }catch(err){
-    setError("保存に失敗： " + (err.message || err));
-  }finally{
-    $("btnSave").textContent = "保存";
-    $("btnSave").disabled = false;
+    setError("エラー： " + (err.message || err));
   }
 };
 
@@ -986,24 +1005,28 @@ $("btnDelete").onclick = async ()=>{
   setError("");
   const id = $("eid").value.trim();
   if(!id) return;
-  if(!confirm("削除しますか？")) return;
+  if(!confirm("本当に削除しますか？")) return;
 
   try{
-    $("btnDelete").textContent = "削除中...";
-    $("btnDelete").disabled = true;
-    
-    await apiDelete(id);
-    await refreshList();
-
+    // 【爆速化の魔法】画面のリストから一瞬で消し去ってモーダルを閉じる
+    events = events.filter(e => String(e.id) !== String(id));
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(events)); } catch(e){}
+    render();
     closeModal();
+
+    $("loadedAt").textContent = "裏側でスプレッドシートから削除中...";
+
+    // 【裏側でこっそりGASに送信】
+    apiDelete(id).then(() => {
+      refreshList(true);
+    }).catch(err => {
+      alert("⚠️ 裏側での削除に失敗しました。\n" + (err.message || err));
+    });
+
   }catch(err){
-    setError("削除に失敗： " + (err.message || err));
-  }finally{
-    $("btnDelete").textContent = "削除";
-    $("btnDelete").disabled = false;
+    setError("エラー： " + (err.message || err));
   }
 };
-
 function escapeHtml(s){
   return String(s??"")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
