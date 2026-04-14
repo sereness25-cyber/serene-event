@@ -804,7 +804,7 @@ function setNewFold(isOpen){
 function initNewFold(){
   const saved = safeGet(NEW_FOLD_KEY);
   const open = (saved !== "closed");
-  setNewFold(open);
+  setNewFold(open); // ⭕️ setNewFold に書き換えてください
 }
 function toggleNewFold(){
   const isOpen = $("btnToggleNew").getAttribute("aria-expanded") === "true";
@@ -1660,10 +1660,11 @@ bindInputDelegation($("listF"));
 
 
 /* ===== 予約→確定 ===== */
-async function confirmParticipant(pid){
+function confirmParticipant(pid){
   const eventId = $("eventSel").value;
   if(!eventId) return;
 
+  // すでに処理中の場合は連打防止
   if(inflight.has(pid)) return;
 
   const p = participants.find(x => x.pid === pid);
@@ -1673,46 +1674,50 @@ async function confirmParticipant(pid){
   }
 
   setError("");
-  lockAction(pid);
+  // 重複実行防止のフラグのみ立てる（画面上のボタン無効化はしない）
+  inflight.add(pid);
 
+  // 1. 即座に配列を更新して画面を再描画（楽観的UI）
   const prev = optimisticUpdate(pid, {
     status: "confirmed",
     updatedAt: nowIso()
   });
+  
+  // 予約一覧から消え、確定一覧に即移動する
   withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
-  setStatus("参加確定（画面反映）→ 保存中…");
+  setStatus("参加確定しました（裏側で保存中…）");
 
-  try{
-    await apiParticipantsUpsert({
-      eventId,
-      pid: p.pid,
-      name: p.name || "",
-      gender: normalizeGender(p.gender),
-      age: p.age || "",
-      contact: displayPhone(p.contact || ""),
-      contactWay: normalizeContactWay(p.contactWay || ""),
-      memo: p.memo || "",
-      status: "confirmed",
-      coupleColor: p.coupleColor || "",
-      discountYen: safeInt(p.discountYen || 0),
-      campaign: p.campaign || "",
-      paid: !!p.paid,
-      receiptNo: p.receiptNo || "",
-      amountYen: p.amountProvided ? safeInt(p.amountYen) : "",
-      updatedAt: nowIso()
-    });
-
-    await reloadParticipants(eventId);
-    withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
-    setStatus("参加確定しました");
-  }catch(err){
+  // 2. 非同期でバックグラウンド保存（awaitしないので画面は止まりません）
+  apiParticipantsUpsert({
+    eventId,
+    pid: p.pid,
+    name: p.name || "",
+    gender: normalizeGender(p.gender),
+    age: p.age || "",
+    contact: displayPhone(p.contact || ""),
+    contactWay: normalizeContactWay(p.contactWay || ""),
+    memo: p.memo || "",
+    status: "confirmed",
+    coupleColor: p.coupleColor || "",
+    discountYen: safeInt(p.discountYen || 0),
+    campaign: p.campaign || "",
+    paid: !!p.paid,
+    receiptNo: p.receiptNo || "",
+    amountYen: p.amountProvided ? safeInt(p.amountYen) : "",
+    updatedAt: nowIso()
+  }).then(() => {
+    // 保存完了時（裏側の処理）
+    setStatus("保存完了");
+  }).catch((err) => {
+    // 失敗時は元の状態（予約）に戻して再描画
     optimisticRevert(pid, prev);
     withKeepDiscountFocus(()=>{ renderConfirmed(); renderReservations(); });
     setStatus("-");
     setError("参加確定に失敗： " + (err.message || err));
-  }finally{
-    unlockAction(pid);
-  }
+  }).finally(() => {
+    // ロック解除
+    inflight.delete(pid);
+  });
 }
 
 /* ===== 予約削除 ===== */
